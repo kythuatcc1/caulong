@@ -582,16 +582,6 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
       </div>
     </div>
 
-    <!-- Share box (host only, khi đang mở) -->
-    <div id="sharebox" style="display:none" class="sharebox">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Mã mời dự phòng — nếu thành viên không thấy buổi</div>
-      <div class="code-big" id="share-code"></div>
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-        <button class="btn-ghost" onclick="copyCode()" style="font-size:13px">📋 Sao chép mã</button>
-        <button class="btn-ghost" onclick="copyLink()" style="font-size:13px">🔗 Sao chép link</button>
-      </div>
-    </div>
-
     <!-- Tabs: Bình chọn / Đã xác nhận / Chi phí -->
     <div class="tabs" id="session-tabs" style="display:grid;grid-template-columns:1fr 1fr 1fr">
       <button class="tab active" id="stab-vote" onclick="switchSessionTab('vote')">🗳 Bình chọn</button>
@@ -694,7 +684,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 ══════════════════════════════ -->
 <div class="page" id="pg-payment">
   <div class="hdr">
-    <div class="back-btn" onclick="goPage('pg-session')">←</div>
+    <div class="back-btn" onclick="stopPaymentRealtime();goPage('pg-session')">←</div>
     <div class="hdr-title">Thanh toán</div>
   </div>
   <div class="content">
@@ -942,7 +932,9 @@ function init() {
   if (document.getElementById('sidebar-username')) document.getElementById('sidebar-username').textContent = me.name;
   if (isDesktop()) initDesktopLayout();
           document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
+          startAllRealtime();
           goPageDirect('pg-home');
+          loadHome();
         } else {
           localStorage.removeItem('cvUser');
           sessionStorage.removeItem('cvUser');
@@ -987,6 +979,7 @@ async function quickLogin() {
   if (isDesktop()) initDesktopLayout();
     document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
     toast(`Chào ${me.name}! 🏸`, 'ok');
+    startAllRealtime();
     goPage('pg-home');
   } else {
     localStorage.removeItem('cvUser');
@@ -1109,6 +1102,7 @@ async function doEnter() {
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   load(false);
   toast(`Chào ${me.name}! 🏸`,'ok');
+  startAllRealtime();
   goPage('pg-home');
 }
 function doExit() {
@@ -1119,8 +1113,70 @@ function doExit() {
 }
 
 // ═══════════════════════════════════════
-// HOME TABS
+// REALTIME — tất cả trang
 // ═══════════════════════════════════════
+let homeCh = null, fundCh = null, adminCh = null, paymentCh = null;
+
+function isActive(pageId) {
+  return document.getElementById(pageId)?.classList.contains('active');
+}
+
+function startAllRealtime() {
+  // ── HOME: sessions thay đổi ──
+  if (homeCh) db.removeChannel(homeCh);
+  homeCh = db.channel('rt-home')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
+      if (isActive('pg-home')) loadHome();
+    })
+    .subscribe();
+
+  // ── FUND: giao dịch quỹ & số dư của tôi ──
+  if (fundCh) db.removeChannel(fundCh);
+  fundCh = db.channel('rt-fund')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions',
+        filter: `user_id=eq.${me.id}` }, () => {
+      if (isActive('pg-fund')) loadFundPage();
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles',
+        filter: `id=eq.${me.id}` }, (pl) => {
+      me.fund_balance = pl.new.fund_balance;
+      if (isActive('pg-fund')) loadFundPage();
+    })
+    .subscribe();
+
+  // ── ADMIN: fund_transactions & profiles ──
+  if (adminCh) db.removeChannel(adminCh);
+  adminCh = db.channel('rt-admin')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, () => {
+      if (isActive('pg-admin')) loadAdminPage();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+      if (isActive('pg-admin')) loadAdminPage();
+    })
+    .subscribe();
+
+  // ── PAYMENT: payments & guest_payments (session hiện tại) ──
+  // startPaymentRealtime() được gọi riêng khi mở trang payment
+}
+
+function startPaymentRealtime(sessionId) {
+  if (paymentCh) db.removeChannel(paymentCh);
+  paymentCh = db.channel('rt-payment-' + sessionId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'payments',
+        filter: `session_id=eq.${sessionId}` }, () => {
+      if (isActive('pg-payment')) openPayment(false, false);
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_payments',
+        filter: `session_id=eq.${sessionId}` }, () => {
+      if (isActive('pg-payment')) openPayment(false, false);
+    })
+    .subscribe();
+}
+
+function stopPaymentRealtime() {
+  if (paymentCh) { db.removeChannel(paymentCh); paymentCh = null; }
+}
+
 function switchHomeTab(tab) {
   homeTab = tab;
   document.getElementById('tab-open').classList.toggle('active', tab==='open');
@@ -1234,26 +1290,34 @@ async function openSession(sid) {
   renderSession();
   goPage('pg-session');
 
-  // Realtime
+  // Realtime — cập nhật state trực tiếp, không re-fetch
   if (rtCh) db.removeChannel(rtCh);
   rtCh = db.channel('s-'+sid)
-    .on('postgres_changes',{event:'*',schema:'public',table:'votes',filter:`session_id=eq.${sid}`}, async () => {
-      const {data:v} = await db.from('votes').select('*').eq('session_id',sid);
-      curSession.votes = v||[];
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'votes',filter:`session_id=eq.${sid}`}, (pl) => {
+      if (!curSession.votes.find(v => v.id === pl.new.id))
+        curSession.votes.push(pl.new);
       renderSession();
-      toast('Có vote mới! 🏸');
+    })
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'votes',filter:`session_id=eq.${sid}`}, (pl) => {
+      curSession.votes = curSession.votes.filter(v => v.id !== pl.old.id);
+      renderSession();
     })
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'session_members',filter:`session_id=eq.${sid}`}, async (pl) => {
+      if (curSession.members.find(x => x.user_id === pl.new.user_id)) return;
       const {data:m} = await db.from('session_members').select('user_id, profiles(id,name)').eq('id',pl.new.id).single();
-      if (m && !curSession.members.find(x=>x.user_id===m.user_id)) {
-        curSession.members.push(m);
-        renderSession();
-        toast(`${m.profiles?.name} vừa tham gia!`);
-      }
+      if (m) { curSession.members.push(m); renderSession(); }
     })
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'sessions',filter:`id=eq.${sid}`}, async () => {
-      const {data:s} = await db.from('sessions').select('*, profiles!host_id(name)').eq('id',sid).single();
-      curSession.session = s;
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'sessions',filter:`id=eq.${sid}`}, (pl) => {
+      curSession.session = { ...curSession.session, ...pl.new };
+      renderSession();
+    })
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'session_guests',filter:`session_id=eq.${sid}`}, (pl) => {
+      if (!curSession.guests.find(g => g.id === pl.new.id))
+        curSession.guests.push(pl.new);
+      renderSession();
+    })
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'session_guests',filter:`session_id=eq.${sid}`}, (pl) => {
+      curSession.guests = curSession.guests.filter(g => g.id !== pl.old.id);
       renderSession();
     })
     .subscribe();
@@ -1295,8 +1359,6 @@ function renderSession() {
   badge.className   = 'badge ' + (isClosed ? 'bc' : 'bv');
   badge.textContent = isClosed ? 'Đã khóa' : 'Đang mở';
 
-  document.getElementById('sharebox').style.display          = isHost && !isClosed ? '' : 'none';
-  document.getElementById('share-code').textContent          = session.code;
   document.getElementById('host-close-btn').style.display    = isHost && !isClosed ? '' : 'none';
 
   // Ai đã tự xác nhận tham gia (voter_id = target_id)
@@ -1936,7 +1998,7 @@ async function doClose() {
 // Mỗi người tự bấm đã trả + upload hóa đơn của mình
 // Host xem tất cả + có thể xác nhận thủ công
 // ═══════════════════════════════════════
-async function openPayment(promptUpload = false) {
+async function openPayment(promptUpload = false, navigateTo = true) {
   const { session } = curSession;
   load(true);
   const [{ data: payments }, { data: guestPayments }] = await Promise.all([
@@ -2183,7 +2245,10 @@ async function openPayment(promptUpload = false) {
     guestPaySec.style.display = 'none';
   }
 
-  goPage('pg-payment');
+  if (navigateTo) {
+    goPage('pg-payment');
+    startPaymentRealtime(session.id);
+  }
   if (promptUpload && myPay && !myPay.is_paid) {
     setTimeout(() => selfSec.scrollIntoView({ behavior:'smooth', block:'center' }), 400);
   }
@@ -2198,7 +2263,7 @@ async function toggleGuestPaid(gpid, currentlyPaid) {
     await db.from('guest_payments').update({ is_paid: true, paid_at: new Date().toISOString() }).eq('id', gpid);
     toast('✓ Đã thu tiền khách', 'ok');
   }
-  openPayment();
+  openPayment(false, false);
 }
 
 // Host xác nhận chuyển khoản
@@ -2208,7 +2273,7 @@ async function hostConfirmPay(pid) {
     paid_at: new Date().toISOString()
   }).eq('id', pid);
   toast('✓ Đã xác nhận thanh toán', 'ok');
-  openPayment();
+  openPayment(false, false);
 }
 
 // Host từ chối — xóa hóa đơn, trả về trạng thái chưa trả
@@ -2221,7 +2286,7 @@ async function hostRejectPay(pid) {
     paid_at:     null
   }).eq('id', pid);
   toast('Đã từ chối — thành viên cần gửi lại hóa đơn');
-  openPayment();
+  openPayment(false, false);
 }
 
 // Host huỷ xác nhận đã trả
@@ -2230,7 +2295,7 @@ async function togglePaid(pid, cur) {
     is_paid: false, paid_at: null, receipt_url: null
   }).eq('id', pid);
   toast('Đã huỷ xác nhận');
-  openPayment();
+  openPayment(false, false);
 }
 
 // Member huỷ hóa đơn đã gửi để gửi lại
@@ -2239,7 +2304,7 @@ async function cancelTransferReceipt(pid) {
     receipt_url: null, paid_at: null, paid_method: 'transfer'
   }).eq('id', pid);
   toast('Đã huỷ — bạn có thể gửi hóa đơn mới');
-  openPayment();
+  openPayment(false, false);
 }
 
 // Thành viên bấm đã trả → hiện sheet chọn phương thức
@@ -2248,7 +2313,7 @@ async function selfMarkPaid(pid, currentlyPaid) {
     // Huỷ thanh toán
     await db.from('payments').update({ is_paid:false, paid_at:null, paid_method:'transfer' }).eq('id', pid);
     toast('Đã huỷ xác nhận');
-    openPayment();
+    openPayment(false, false);
     return;
   }
   // Chọn phương thức
@@ -2308,7 +2373,7 @@ async function choosePayMethod(method) {
     load(false);
     openTransferSheet(pid, amount);
   }
-  if (method === 'fund') openPayment();
+  if (method === 'fund') openPayment(false, false);
 }
 
 // ─────────────────────────────────────
@@ -2369,7 +2434,7 @@ async function confirmTransfer() {
   }).eq('id', transferPid);
   load(false);
   toast('✓ Đã gửi hóa đơn! Chờ host xác nhận', 'ok');
-  openPayment();
+  openPayment(false, false);
 }
 
 // ─────────────────────────────────────
@@ -2653,7 +2718,7 @@ async function uploadMyReceipt(input, paymentId) {
     await db.from('payments').update({ receipt_url: base64 }).eq('id', paymentId);
     load(false);
     toast('✓ Đã đính kèm hóa đơn!','ok');
-    openPayment();
+    openPayment(false, false);
   } catch(e) {
     load(false); toast('Lỗi xử lý ảnh: '+e.message,'err');
   }
