@@ -365,6 +365,17 @@ body {
 .method-btn.active-fund { background:rgba(167,139,250,.1); border-color:rgba(167,139,250,.4); color:#a78bfa; }
 
 /* Admin member card */
+/* ── Guest member row ── */
+.guest-row {
+  display:flex; align-items:center; gap:10px;
+  background:rgba(255,107,71,.06); border:1px solid rgba(255,107,71,.2);
+  border-radius:var(--r); padding:10px 14px; margin-bottom:6px;
+}
+.guest-badge { background:rgba(255,107,71,.15); color:var(--accent3); font-size:9px; padding:2px 7px; border-radius:8px; font-weight:700; white-space:nowrap; }
+.guest-pay-row {
+  background:rgba(255,107,71,.05); border:1px solid rgba(255,107,71,.2);
+  border-radius:var(--r);
+}
 .admin-member-card {
   background:var(--card); border:1px solid var(--border); border-radius:16px;
   padding:14px 16px; margin-bottom:10px;
@@ -592,6 +603,31 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
     <div id="tab-pane-vote">
       <div style="color:var(--muted);font-size:12px;margin-bottom:12px" id="s-hint"></div>
       <div id="vote-list"></div>
+
+      <!-- Khách vãng lai (host only) -->
+      <div id="guest-mgmt-wrap" style="display:none;margin-top:4px">
+        <div class="sec" style="margin-top:20px;margin-bottom:8px">
+          <div class="sec-t" style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:16px">👤</span> Khách vãng lai
+            <span id="guest-count-badge" style="background:rgba(255,107,71,.15);color:var(--accent3);border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700"></span>
+          </div>
+        </div>
+        <div style="color:var(--muted);font-size:12px;margin-bottom:10px">Thành viên không có tài khoản — host nhập tay. Tiền của họ không tính vào quỹ chung.</div>
+        <div id="guest-list"></div>
+        <div id="add-guest-form" style="display:none;margin-top:6px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="fi" id="guest-name-input" placeholder="Nhập tên khách..." style="flex:1;padding:11px 14px;font-size:14px"
+              onkeydown="if(event.key==='Enter')addGuest()">
+            <button class="btn-sm" onclick="addGuest()">✓ Thêm</button>
+          </div>
+        </div>
+        <button id="toggle-guest-btn" onclick="toggleGuestForm()"
+          style="margin-top:8px;width:100%;padding:10px;border-radius:12px;
+          background:rgba(255,107,71,.08);border:1px dashed rgba(255,107,71,.3);
+          color:var(--accent3);font-family:'Be Vietnam Pro',sans-serif;font-size:13px;
+          font-weight:700;cursor:pointer">+ Thêm khách vãng lai</button>
+      </div>
+
       <div id="pay-btn-wrap" style="margin-top:4px"></div>
     </div>
 
@@ -682,6 +718,18 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
     </div>
     <div style="color:var(--muted);font-size:12px;margin-bottom:12px" id="pay-hint"></div>
     <div id="pay-list"></div>
+
+    <!-- Khách vãng lai payments -->
+    <div id="guest-pay-section" style="display:none">
+      <div class="sec" style="margin-top:20px">
+        <div class="sec-t" style="display:flex;align-items:center;gap:6px">
+          <span>👤</span> Khách vãng lai
+          <span style="background:rgba(255,107,71,.15);color:var(--accent3);border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700">Tiền mặt</span>
+        </div>
+      </div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:12px">Thanh toán tiền mặt trực tiếp — không tính vào quỹ</div>
+      <div id="guest-pay-list"></div>
+    </div>
   </div>
 </div>
 
@@ -1162,10 +1210,11 @@ async function doCreate() {
 // ═══════════════════════════════════════
 async function openSession(sid) {
   load(true);
-  const [{ data: session }, { data: members }, { data: votes }] = await Promise.all([
+  const [{ data: session }, { data: members }, { data: votes }, { data: guests }] = await Promise.all([
     db.from('sessions').select('*, profiles!host_id(name)').eq('id',sid).single(),
     db.from('session_members').select('user_id, profiles(id,name)').eq('session_id',sid),
-    db.from('votes').select('*').eq('session_id',sid)
+    db.from('votes').select('*').eq('session_id',sid),
+    db.from('session_guests').select('*').eq('session_id',sid).order('created_at')
   ]);
 
   // Tự động join nếu chưa là thành viên và buổi đang mở
@@ -1174,9 +1223,9 @@ async function openSession(sid) {
     await db.from('session_members').upsert({session_id:sid, user_id:me.id},{onConflict:'session_id,user_id'});
     // reload members
     const { data: m2 } = await db.from('session_members').select('user_id, profiles(id,name)').eq('session_id',sid);
-    curSession = { session, members: m2||[], votes: votes||[] };
+    curSession = { session, members: m2||[], votes: votes||[], guests: guests||[] };
   } else {
-    curSession = { session, members: members||[], votes: votes||[] };
+    curSession = { session, members: members||[], votes: votes||[], guests: guests||[] };
   }
 
   load(false);
@@ -1258,6 +1307,11 @@ function renderSession() {
   const confirmedCount = confirmedIds.size;
 
   document.getElementById('voted-count-badge').textContent = confirmedCount || '';
+
+  // ── Guest management (host only, khi buổi đang mở) ──
+  const guestWrap = document.getElementById('guest-mgmt-wrap');
+  guestWrap.style.display = isHost ? '' : 'none';
+  renderGuestList();
 
   // ── TAB: Bình chọn ──
   document.getElementById('s-hint').textContent = isClosed
@@ -1368,11 +1422,80 @@ async function doVote() {
 }
 
 // ═══════════════════════════════════════
+// GUESTS — thành viên vãng lai
+// ═══════════════════════════════════════
+function renderGuestList() {
+  const guests  = curSession.guests || [];
+  const isClosed = curSession.session.status === 'closed';
+  const isHost   = curSession.session.host_id === me.id;
+
+  // Badge count
+  document.getElementById('guest-count-badge').textContent = guests.length || '';
+
+  // Toggle button
+  const toggleBtn = document.getElementById('toggle-guest-btn');
+  if (toggleBtn) toggleBtn.style.display = isClosed ? 'none' : '';
+
+  const el = document.getElementById('guest-list');
+  if (!guests.length) {
+    el.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:6px 0">Chưa có khách vãng lai nào</div>`;
+    return;
+  }
+  el.innerHTML = guests.map(g => `
+    <div class="guest-row">
+      <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,107,71,.25);
+        display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--accent3);flex-shrink:0">
+        ${initials(g.name)}
+      </div>
+      <div style="flex:1">
+        <div style="font-size:14px;font-weight:600">${g.name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Khách vãng lai · Tiền mặt</div>
+      </div>
+      <span class="guest-badge">Khách</span>
+      ${isHost && !isClosed ? `
+        <button onclick="removeGuest('${g.id}')"
+          style="background:none;border:1px solid rgba(239,68,68,.3);color:var(--red);border-radius:8px;
+          padding:4px 9px;font-size:12px;cursor:pointer;flex-shrink:0">✕</button>` : ''}
+    </div>`).join('');
+}
+
+function toggleGuestForm() {
+  const form = document.getElementById('add-guest-form');
+  const btn  = document.getElementById('toggle-guest-btn');
+  const showing = form.style.display !== 'none';
+  form.style.display = showing ? 'none' : '';
+  btn.textContent = showing ? '+ Thêm khách vãng lai' : '✕ Đóng';
+  if (!showing) setTimeout(() => document.getElementById('guest-name-input').focus(), 100);
+}
+
+async function addGuest() {
+  const name = document.getElementById('guest-name-input').value.trim();
+  if (!name) return toast('Nhập tên khách', 'err');
+  const sid = curSession.session.id;
+  const { data: guest, error } = await db.from('session_guests').insert({ session_id: sid, name }).select().single();
+  if (error) return toast(error.message, 'err');
+  curSession.guests = [...(curSession.guests||[]), guest];
+  document.getElementById('guest-name-input').value = '';
+  renderGuestList();
+  toast(`✓ Đã thêm ${name}`, 'ok');
+}
+
+async function removeGuest(gid) {
+  if (!confirm('Xoá khách này khỏi buổi?')) return;
+  await db.from('session_guests').delete().eq('id', gid);
+  curSession.guests = (curSession.guests||[]).filter(g => g.id !== gid);
+  renderGuestList();
+  toast('Đã xoá khách');
+}
+
+// ═══════════════════════════════════════
 // EXPENSES
 // ═══════════════════════════════════════
 let expSplitType = 'all';
-let expPickedIds = new Set();  // cho 'selected'
-let expPersonal  = {};         // uid -> amount cho 'personal'
+let expPickedIds = new Set();      // uid cho 'selected' (thành viên)
+let expPersonal  = {};             // uid -> amount cho 'personal'
+let expPickedGuestIds = new Set(); // guest id cho 'selected'
+let expPersonalGuest  = {};        // gid -> amount cho 'personal'
 
 async function renderExpenses() {
   const { session, members } = curSession;
@@ -1381,9 +1504,10 @@ async function renderExpenses() {
 
   document.getElementById('exp-host-add').style.display = isHost && !isClosed ? '' : 'none';
 
-  // Load expenses + assignments
+  // Load expenses + assignments (cả member và guest)
   const { data: expenses } = await db.from('expenses')
-    .select('*, expense_assignments(user_id, amount)').eq('session_id', session.id)
+    .select('*, expense_assignments(user_id, amount), guest_expense_assignments(guest_id, amount)')
+    .eq('session_id', session.id)
     .order('created_at');
 
   const expList = document.getElementById('exp-list');
@@ -1405,22 +1529,35 @@ async function renderExpenses() {
     const cls   = e.split_type === 'all' ? 'exp-all' : e.split_type === 'selected' ? 'exp-sel' : 'exp-pers';
     const bCls  = e.split_type === 'all' ? 'exp-badge-all' : e.split_type === 'selected' ? 'exp-badge-sel' : 'exp-badge-pers';
     const label = e.split_type === 'all' ? '🌐 Chia đều' : e.split_type === 'selected' ? '👥 Chia chọn' : '🎯 Gán riêng';
-    const assigns = e.expense_assignments || [];
+    const assigns      = e.expense_assignments || [];
+    const guestAssigns = e.guest_expense_assignments || [];
+    const guests       = curSession.guests || [];
     const assignedNames = assigns.map(a => {
       const m = members.find(x => x.user_id === a.user_id);
       return m?.profiles?.name || '?';
     });
+    const guestAssignedNames = guestAssigns.map(a => {
+      const g = guests.find(x => x.id === a.guest_id);
+      return (g?.name || '?') + ' 👤';
+    });
 
     let subInfo = '';
     if (e.split_type === 'all') {
-      subInfo = `Chia cho tất cả người tham gia`;
+      const totalPpl = (curSession.guests||[]).length;
+      subInfo = `Chia cho tất cả người tham gia${totalPpl > 0 ? ` (gồm ${totalPpl} khách)` : ''}`;
     } else if (e.split_type === 'selected') {
-      subInfo = assigns.length ? `Chia cho: ${assignedNames.join(', ')}` : 'Chưa chọn thành viên';
+      const allNames = [...assignedNames, ...guestAssignedNames];
+      subInfo = allNames.length ? `Chia cho: ${allNames.join(', ')}` : 'Chưa chọn thành viên';
     } else {
-      subInfo = assigns.map(a => {
+      const memberParts = assigns.map(a => {
         const m = members.find(x => x.user_id === a.user_id);
         return `${m?.profiles?.name||'?'}: ${fmt(a.amount)}`;
-      }).join(' · ') || 'Chưa gán';
+      });
+      const guestParts = guestAssigns.map(a => {
+        const g = guests.find(x => x.id === a.guest_id);
+        return `${g?.name||'?'} 👤: ${fmt(a.amount)}`;
+      });
+      subInfo = [...memberParts, ...guestParts].join(' · ') || 'Chưa gán';
     }
 
     return `
@@ -1445,35 +1582,43 @@ async function renderExpenses() {
 }
 
 function renderExpSummary(expenses, members, session) {
-  // Confirming who's in (use votes)
   const confirmedIds = new Set(
     (curSession.votes||[]).filter(v => v.voter_id === v.target_id).map(v => v.voter_id)
   );
   const inMembers = members.filter(m => confirmedIds.has(m.user_id));
-  if (!inMembers.length) return '';
+  const guests    = curSession.guests || [];
+  const totalPpl  = inMembers.length + guests.length;
+  if (!totalPpl) return '';
 
-  // Per-member breakdown preview
+  // Per-member totals
   const totals = {};
-  inMembers.forEach(m => { totals[m.user_id] = 0; });
+  inMembers.forEach(m => { totals['m_'+m.user_id] = 0; });
+  guests.forEach(g    => { totals['g_'+g.id]       = 0; });
 
   expenses.forEach(e => {
-    const assigns = e.expense_assignments || [];
+    const assigns      = e.expense_assignments || [];
+    const guestAssigns = e.guest_expense_assignments || [];
     if (e.split_type === 'all') {
-      const share = e.amount / inMembers.length;
-      inMembers.forEach(m => { totals[m.user_id] = (totals[m.user_id]||0) + share; });
+      const share = e.amount / totalPpl;
+      inMembers.forEach(m => { totals['m_'+m.user_id] += share; });
+      guests.forEach(g    => { totals['g_'+g.id]       += share; });
     } else if (e.split_type === 'selected') {
-      if (assigns.length) {
-        const share = e.amount / assigns.length;
-        assigns.forEach(a => { if (totals[a.user_id] !== undefined) totals[a.user_id] += share; });
+      const totalSel = assigns.length + guestAssigns.length;
+      if (totalSel) {
+        const share = e.amount / totalSel;
+        assigns.forEach(a      => { if (totals['m_'+a.user_id] !== undefined) totals['m_'+a.user_id] += share; });
+        guestAssigns.forEach(a => { if (totals['g_'+a.guest_id] !== undefined) totals['g_'+a.guest_id] += share; });
       }
     } else {
-      assigns.forEach(a => { if (totals[a.user_id] !== undefined) totals[a.user_id] += a.amount; });
+      assigns.forEach(a      => { if (totals['m_'+a.user_id]  !== undefined) totals['m_'+a.user_id]  += a.amount; });
+      guestAssigns.forEach(a => { if (totals['g_'+a.guest_id] !== undefined) totals['g_'+a.guest_id] += a.amount; });
     }
   });
 
-  const courtShare = session.court_fee / inMembers.length;
-  const rows = inMembers.map(m => {
-    const extra = totals[m.user_id] || 0;
+  const courtShare = session.court_fee / totalPpl;
+
+  const memberRows = inMembers.map(m => {
+    const extra = totals['m_'+m.user_id] || 0;
     const total = courtShare + extra;
     return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
       <div class="av" style="background:${ac(m.user_id)};width:32px;height:32px;font-size:11px">${initials(m.profiles?.name||'?')}</div>
@@ -1485,9 +1630,25 @@ function renderExpSummary(expenses, members, session) {
     </div>`;
   }).join('');
 
+  const guestRows = guests.map(g => {
+    const extra = totals['g_'+g.id] || 0;
+    const total = courtShare + extra;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,107,71,.12)">
+      <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,107,71,.2);
+        display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--accent3);flex-shrink:0">${initials(g.name)}</div>
+      <div style="flex:1;font-size:13px;font-weight:600">${g.name} <span class="guest-badge" style="font-size:8px">Khách</span></div>
+      <div style="text-align:right">
+        <div style="font-size:14px;font-weight:700;color:var(--accent3)">${fmt(Math.ceil(total))}</div>
+        ${extra > 0 ? `<div style="font-size:10px;color:var(--muted)">${fmt(Math.ceil(courtShare))} + ${fmt(Math.ceil(extra))}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
   return `<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px;margin-top:12px">
-    <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--muted)">Dự kiến mỗi người trả (nếu tất cả tham gia)</div>
-    ${rows}
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--muted)">Dự kiến mỗi người trả</div>
+    ${memberRows}
+    ${guestRows}
+    ${guests.length ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">👤 Khách vãng lai thu tiền mặt — không tính vào quỹ</div>` : ''}
   </div>`;
 }
 
@@ -1506,8 +1667,10 @@ let sheetEditId = null;
 function openExpenseSheet() {
   sheetEditId = null;
   expSplitType = 'all';
-  expPickedIds = new Set();
-  expPersonal  = {};
+  expPickedIds      = new Set();
+  expPersonal       = {};
+  expPickedGuestIds = new Set();
+  expPersonalGuest  = {};
   document.getElementById('exp-name').value   = '';
   document.getElementById('exp-amount').value = '';
   setSplitType('all');
@@ -1537,14 +1700,15 @@ function setSplitType(type) {
 
 function renderMemberPicker() {
   const { members } = curSession;
+  const guests = curSession.guests || [];
   const confirmedIds = new Set(
     (curSession.votes||[]).filter(v => v.voter_id === v.target_id).map(v => v.voter_id)
   );
   const pool = members.filter(m => confirmedIds.has(m.user_id));
 
-  document.getElementById('member-picker').innerHTML = pool.map(m => {
-    const uid   = m.user_id;
-    const name  = m.profiles?.name || '?';
+  const memberRows = pool.map(m => {
+    const uid      = m.user_id;
+    const name     = m.profiles?.name || '?';
     const isPicked = expPickedIds.has(uid);
     if (expSplitType === 'selected') {
       return `<div class="mpick-row ${isPicked?'picked':''}" onclick="togglePick('${uid}')">
@@ -1552,7 +1716,6 @@ function renderMemberPicker() {
         <div style="flex:1;font-size:14px;font-weight:600">${name}</div>
       </div>`;
     } else {
-      // personal: show amount input per person
       const val = expPersonal[uid] || '';
       return `<div class="mpick-row" style="cursor:default">
         <div class="av" style="background:${ac(uid)};width:32px;height:32px;font-size:11px;flex-shrink:0">${initials(name)}</div>
@@ -1561,12 +1724,50 @@ function renderMemberPicker() {
           oninput="expPersonal['${uid}']=parseFloat(this.value)||0" onclick="event.stopPropagation()">
       </div>`;
     }
-  }).join('') || '<div style="color:var(--muted);font-size:13px;padding:10px 0">Chưa có ai xác nhận tham gia</div>';
+  }).join('');
+
+  const guestRows = guests.map(g => {
+    const gid      = g.id;
+    const name     = g.name;
+    const isPicked = expPickedGuestIds.has(gid);
+    if (expSplitType === 'selected') {
+      return `<div class="mpick-row ${isPicked?'picked':''}" onclick="togglePickGuest('${gid}')"
+        style="${isPicked ? 'border-color:rgba(255,107,71,.4);background:rgba(255,107,71,.06)' : ''}">
+        <div class="mpick-check" style="${isPicked ? 'background:var(--accent3);border-color:var(--accent3);color:#fff' : ''}">${isPicked?'✓':''}</div>
+        <div style="flex:1;font-size:14px;font-weight:600">${name}</div>
+        <span class="guest-badge">Khách</span>
+      </div>`;
+    } else {
+      const val = expPersonalGuest[gid] || '';
+      return `<div class="mpick-row" style="cursor:default;border-color:rgba(255,107,71,.2)">
+        <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,107,71,.2);
+          display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--accent3);flex-shrink:0">${initials(name)}</div>
+        <div style="flex:1;font-size:14px;font-weight:600">${name} <span class="guest-badge" style="font-size:8px">Khách</span></div>
+        <input class="amount-mini" type="number" placeholder="0" value="${val}"
+          oninput="expPersonalGuest['${gid}']=parseFloat(this.value)||0" onclick="event.stopPropagation()">
+      </div>`;
+    }
+  }).join('');
+
+  const divider = guests.length && pool.length
+    ? `<div style="font-size:10px;color:var(--muted);padding:6px 2px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">👤 Khách vãng lai</div>`
+    : '';
+
+  document.getElementById('member-picker').innerHTML =
+    (memberRows || '') +
+    (guests.length ? divider + guestRows : '') ||
+    '<div style="color:var(--muted);font-size:13px;padding:10px 0">Chưa có ai trong buổi</div>';
 }
 
 function togglePick(uid) {
   if (expPickedIds.has(uid)) expPickedIds.delete(uid);
   else expPickedIds.add(uid);
+  renderMemberPicker();
+}
+
+function togglePickGuest(gid) {
+  if (expPickedGuestIds.has(gid)) expPickedGuestIds.delete(gid);
+  else expPickedGuestIds.add(gid);
   renderMemberPicker();
 }
 
@@ -1576,8 +1777,8 @@ async function saveExpense() {
   if (!name)   return toast('Nhập tên khoản', 'err');
   if (!amount) return toast('Nhập số tiền', 'err');
 
-  if (expSplitType === 'selected' && expPickedIds.size === 0)
-    return toast('Chọn ít nhất 1 thành viên', 'err');
+  if (expSplitType === 'selected' && expPickedIds.size === 0 && expPickedGuestIds.size === 0)
+    return toast('Chọn ít nhất 1 thành viên hoặc khách', 'err');
 
   load(true);
   const { data: expense, error } = await db.from('expenses').insert({
@@ -1586,17 +1787,27 @@ async function saveExpense() {
   }).select().single();
   if (error) { load(false); return toast(error.message, 'err'); }
 
-  // Ghi assignments
+  // Ghi member assignments
   if (expSplitType === 'selected') {
-    await db.from('expense_assignments').insert(
-      [...expPickedIds].map(uid => ({ expense_id: expense.id, user_id: uid, amount: 0 }))
-    );
+    if (expPickedIds.size)
+      await db.from('expense_assignments').insert(
+        [...expPickedIds].map(uid => ({ expense_id: expense.id, user_id: uid, amount: 0 }))
+      );
+    if (expPickedGuestIds.size)
+      await db.from('guest_expense_assignments').insert(
+        [...expPickedGuestIds].map(gid => ({ expense_id: expense.id, guest_id: gid, amount: 0 }))
+      );
   } else if (expSplitType === 'personal') {
     const { members } = curSession;
-    const entries = members
+    const guests = curSession.guests || [];
+    const memberEntries = members
       .filter(m => expPersonal[m.user_id] > 0)
       .map(m => ({ expense_id: expense.id, user_id: m.user_id, amount: expPersonal[m.user_id] }));
-    if (entries.length) await db.from('expense_assignments').insert(entries);
+    const guestEntries = guests
+      .filter(g => expPersonalGuest[g.id] > 0)
+      .map(g => ({ expense_id: expense.id, guest_id: g.id, amount: expPersonalGuest[g.id] }));
+    if (memberEntries.length) await db.from('expense_assignments').insert(memberEntries);
+    if (guestEntries.length)  await db.from('guest_expense_assignments').insert(guestEntries);
   }
 
   load(false);
@@ -1610,13 +1821,16 @@ async function saveExpense() {
 // ═══════════════════════════════════════
 async function doClose() {
   const { session, votes, members } = curSession;
+  const guests = curSession.guests || [];
   const confirmedIds = new Set(
     votes.filter(v => v.voter_id === v.target_id).map(v => v.voter_id)
   );
   const confirmedCount = confirmedIds.size;
+  const totalCount = confirmedCount + guests.length;
+
   if (!confirm(
     `Khóa buổi?\n\n` +
-    `${confirmedCount} người đã xác nhận tham gia.\n` +
+    `${confirmedCount} thành viên + ${guests.length} khách vãng lai (tổng ${totalCount} người).\n` +
     (confirmedCount > session.max_players
       ? `Quá ${session.max_players} người — sẽ lấy ${session.max_players} người xác nhận sớm nhất.\n\n`
       : '\n') +
@@ -1624,7 +1838,7 @@ async function doClose() {
   )) return;
   load(true);
 
-  // Lấy danh sách người tham gia
+  // Lấy danh sách thành viên tham gia
   const selfVotes = votes
     .filter(v => v.voter_id === v.target_id)
     .sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
@@ -1635,42 +1849,54 @@ async function doClose() {
   if (!pickedUids.has(session.host_id)) pickedUids.add(session.host_id);
   const picked = members.filter(m => pickedUids.has(m.user_id));
 
+  // Tổng người = thành viên + khách
+  const totalPpl = picked.length + guests.length;
+
   // Load expenses + assignments
   const { data: expenses } = await db.from('expenses')
-    .select('*, expense_assignments(user_id, amount)')
+    .select('*, expense_assignments(user_id, amount), guest_expense_assignments(guest_id, amount)')
     .eq('session_id', session.id);
 
-  // Tính tiền từng người
-  const courtBase = session.court_fee / picked.length;
+  // Tính tiền từng người (chia phí sân cho cả khách)
+  const courtBase = session.court_fee / totalPpl;
   const extraMap  = {};
-  picked.forEach(m => { extraMap[m.user_id] = []; });
+  picked.forEach(m  => { extraMap['m_'+m.user_id] = []; });
+  guests.forEach(g  => { extraMap['g_'+g.id]       = []; });
 
   (expenses||[]).forEach(e => {
-    const assigns = e.expense_assignments || [];
+    const assigns      = e.expense_assignments || [];
+    const guestAssigns = e.guest_expense_assignments || [];
     if (e.split_type === 'all') {
-      const share = e.amount / picked.length;
-      picked.forEach(m => extraMap[m.user_id].push({ name: e.name, amount: share }));
+      const share = e.amount / totalPpl;
+      picked.forEach(m  => extraMap['m_'+m.user_id].push({ name: e.name, amount: share }));
+      guests.forEach(g  => extraMap['g_'+g.id].push({ name: e.name, amount: share }));
     } else if (e.split_type === 'selected') {
-      const targets = assigns.filter(a => pickedUids.has(a.user_id));
-      if (targets.length) {
-        const share = e.amount / targets.length;
-        targets.forEach(a => {
-          if (extraMap[a.user_id]) extraMap[a.user_id].push({ name: e.name, amount: share });
+      const totalSel = assigns.length + guestAssigns.length;
+      if (totalSel) {
+        const share = e.amount / totalSel;
+        assigns.forEach(a => {
+          if (extraMap['m_'+a.user_id]) extraMap['m_'+a.user_id].push({ name: e.name, amount: share });
+        });
+        guestAssigns.forEach(a => {
+          if (extraMap['g_'+a.guest_id]) extraMap['g_'+a.guest_id].push({ name: e.name, amount: share });
         });
       }
     } else {
       assigns.forEach(a => {
-        if (extraMap[a.user_id]) extraMap[a.user_id].push({ name: e.name, amount: a.amount });
+        if (extraMap['m_'+a.user_id]) extraMap['m_'+a.user_id].push({ name: e.name, amount: a.amount });
+      });
+      guestAssigns.forEach(a => {
+        if (extraMap['g_'+a.guest_id]) extraMap['g_'+a.guest_id].push({ name: e.name, amount: a.amount });
       });
     }
   });
 
-  // Upsert payments với breakdown
+  // Upsert member payments
   await db.from('payments').upsert(
     picked.map(m => {
-      const extras    = extraMap[m.user_id] || [];
-      const extraSum  = extras.reduce((s,x) => s+x.amount, 0);
-      const total     = Math.ceil(courtBase + extraSum);
+      const extras   = extraMap['m_'+m.user_id] || [];
+      const extraSum = extras.reduce((s,x) => s+x.amount, 0);
+      const total    = Math.ceil(courtBase + extraSum);
       const breakdown = [
         { name: 'Phí sân', amount: Math.ceil(courtBase) },
         ...extras.map(x => ({ name: x.name, amount: Math.ceil(x.amount) }))
@@ -1680,12 +1906,28 @@ async function doClose() {
     { onConflict: 'session_id,user_id' }
   );
 
+  // Upsert guest payments (không liên quan quỹ)
+  if (guests.length) {
+    await db.from('guest_payments').upsert(
+      guests.map(g => {
+        const extras   = extraMap['g_'+g.id] || [];
+        const extraSum = extras.reduce((s,x) => s+x.amount, 0);
+        const total    = Math.ceil(courtBase + extraSum);
+        const breakdown = [
+          { name: 'Phí sân', amount: Math.ceil(courtBase) },
+          ...extras.map(x => ({ name: x.name, amount: Math.ceil(x.amount) }))
+        ];
+        return { session_id: session.id, guest_id: g.id, amount: total, breakdown, is_paid: false };
+      }),
+      { onConflict: 'session_id,guest_id' }
+    );
+  }
+
   await db.from('sessions').update({ status: 'closed' }).eq('id', session.id);
   curSession.session.status = 'closed';
   load(false);
-  toast(`Đã khóa! ${picked.length} người tham gia`, 'ok');
+  toast(`Đã khóa! ${picked.length} thành viên + ${guests.length} khách`, 'ok');
   renderSession();
-  // Mở trang thanh toán
   setTimeout(() => openPayment(true), 600);
 }
 
@@ -1697,8 +1939,10 @@ async function doClose() {
 async function openPayment(promptUpload = false) {
   const { session } = curSession;
   load(true);
-  const { data: payments } = await db.from('payments')
-    .select('*, profiles!user_id(id,name)').eq('session_id', session.id);
+  const [{ data: payments }, { data: guestPayments }] = await Promise.all([
+    db.from('payments').select('*, profiles!user_id(id,name)').eq('session_id', session.id),
+    db.from('guest_payments').select('*, session_guests(id,name)').eq('session_id', session.id)
+  ]);
   load(false);
 
   const paidCnt    = payments?.filter(p => p.is_paid).length || 0;
@@ -1708,9 +1952,9 @@ async function openPayment(promptUpload = false) {
 
   const heroAmt = myPay?.amount || (payments?.[0]?.amount || 0);
   document.getElementById('pay-pp').textContent    = fmt(heroAmt);
-  document.getElementById('pay-sub').textContent   = `${session.title} · ${payments?.length||0} người`;
+  document.getElementById('pay-sub').textContent   = `${session.title} · ${(payments?.length||0) + (guestPayments?.length||0)} người`;
   document.getElementById('pay-total').textContent = fmt(session.court_fee);
-  document.getElementById('pay-n').textContent     = payments?.length || 0;
+  document.getElementById('pay-n').textContent     = (payments?.length||0) + (guestPayments?.length||0);
   document.getElementById('pay-done').textContent  = pendingCnt > 0
     ? `${paidCnt}/${payments?.length||0} · ${pendingCnt} chờ duyệt`
     : `${paidCnt}/${payments?.length||0}`;
@@ -1886,10 +2130,75 @@ async function openPayment(promptUpload = false) {
       </div>`;
   }).join('');
 
+  // ── Guest payment list (host only) ──
+  const guestPaySec  = document.getElementById('guest-pay-section');
+  const guestPayList = document.getElementById('guest-pay-list');
+  if (guestPayments?.length && isHost) {
+    guestPaySec.style.display = '';
+    guestPayList.innerHTML = guestPayments.map(gp => {
+      const gname     = gp.session_guests?.name || '?';
+      const breakdown = Array.isArray(gp.breakdown) ? gp.breakdown : [];
+      const bdHtml = breakdown.length > 1
+        ? `<div style="margin-top:5px;padding:7px 10px;background:var(--bg3);border-radius:8px">
+            ${breakdown.map(b=>`
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:2px">
+                <span>${b.name}</span><span>${fmt(b.amount)}</span>
+              </div>`).join('')}
+          </div>` : '';
+
+      const badgeHtml = gp.is_paid
+        ? `<span class="badge bp">✓ Đã thu</span>`
+        : `<span class="badge" style="background:rgba(255,107,71,.15);color:var(--accent3)">Chưa thu</span>`;
+
+      return `
+        <div class="card guest-pay-row" style="cursor:default">
+          <div style="display:flex;align-items:flex-start;gap:10px">
+            <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,107,71,.2);
+              display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;
+              color:var(--accent3);flex-shrink:0">${initials(gname)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-weight:600;font-size:14px">${gname}</span>
+                <span class="guest-badge">Khách</span>
+              </div>
+              <div style="color:var(--accent3);font-size:14px;font-weight:700;margin-top:2px">${fmt(gp.amount)}</div>
+              ${bdHtml}
+              ${gp.paid_at ? `<div style="color:var(--muted);font-size:11px;margin-top:4px">Thu lúc ${new Date(gp.paid_at).toLocaleString('vi-VN')}</div>` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+              ${badgeHtml}
+              ${gp.is_paid
+                ? `<button onclick="toggleGuestPaid('${gp.id}',true)"
+                    style="background:none;border:1px solid rgba(239,68,68,.25);color:var(--red);border-radius:8px;
+                    padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap">✕ Huỷ</button>`
+                : `<button onclick="toggleGuestPaid('${gp.id}',false)"
+                    style="background:none;border:1px solid rgba(34,197,94,.3);color:var(--green);border-radius:8px;
+                    padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap">✓ Đã thu</button>`
+              }
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  } else {
+    guestPaySec.style.display = 'none';
+  }
+
   goPage('pg-payment');
   if (promptUpload && myPay && !myPay.is_paid) {
     setTimeout(() => selfSec.scrollIntoView({ behavior:'smooth', block:'center' }), 400);
   }
+}
+
+// Host đánh dấu đã thu tiền mặt khách
+async function toggleGuestPaid(gpid, currentlyPaid) {
+  if (currentlyPaid) {
+    await db.from('guest_payments').update({ is_paid: false, paid_at: null }).eq('id', gpid);
+    toast('Đã huỷ xác nhận thu tiền khách');
+  } else {
+    await db.from('guest_payments').update({ is_paid: true, paid_at: new Date().toISOString() }).eq('id', gpid);
+    toast('✓ Đã thu tiền khách', 'ok');
+  }
+  openPayment();
 }
 
 // Host xác nhận chuyển khoản
