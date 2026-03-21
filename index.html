@@ -900,7 +900,7 @@ const BANK_NAME    = 'LE QUANG HUY';
     <!-- BƯỚC 2: Quét QR -->
     <div id="dep-step-2" style="display:none">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-        <button onclick="backToDepStep1()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">←</button>
+        <button onclick="cancelDepositIfPending();backToDepStep1()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">←</button>
         <div style="font-size:17px;font-weight:800">Quét QR chuyển khoản</div>
       </div>
 
@@ -949,7 +949,7 @@ const BANK_NAME    = 'LE QUANG HUY';
         <div style="font-size:11px;color:var(--muted)">Chuyển khoản xong, app sẽ tự xác nhận trong vài giây</div>
       </div>
 
-      <button onclick="closeDepositSheet({})" style="width:100%;padding:12px;border-radius:12px;
+      <button onclick="closeDepositKeepPending()" style="width:100%;padding:12px;border-radius:12px;
         background:var(--bg3);border:1px solid var(--border);color:var(--muted);
         font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
         Đóng (chờ xác nhận sau)
@@ -2901,20 +2901,43 @@ function openDepositSheet() {
 
 function closeDepositSheet(e) {
   if (!e || !e.target || e.target === document.getElementById('deposit-sheet-bg')) {
-    clearInterval(depPollTimer);
-    document.getElementById('deposit-sheet-bg').classList.remove('show');
+    // Bấm ra ngoài → huỷ giao dịch pending nếu đang ở bước 2
+    cancelDepositIfPending();
   }
+}
+
+// Đóng và giữ lại giao dịch pending (chờ admin xác nhận sau)
+function closeDepositKeepPending() {
+  clearInterval(depPollTimer);
+  document.getElementById('deposit-sheet-bg').classList.remove('show');
+}
+
+async function cancelDepositIfPending() {
+  clearInterval(depPollTimer);
+  // Nếu đang ở bước 2 và có txnId → xoá giao dịch pending
+  const step2 = document.getElementById('dep-step-2');
+  if (depTxnId && step2 && step2.style.display !== 'none') {
+    await db.from('fund_transactions').delete().eq('id', depTxnId).eq('status', 'pending');
+    depTxnId = null;
+    toast('Đã huỷ yêu cầu đóng quỹ');
+  }
+  document.getElementById('deposit-sheet-bg').classList.remove('show');
 }
 
 function backToDepStep1() {
   clearInterval(depPollTimer);
+  depTxnId = null;
   document.getElementById('dep-step-1').style.display = '';
   document.getElementById('dep-step-2').style.display = 'none';
 }
 
 // Sinh nội dung chuyển khoản ngắn gọn từ txnId
 function depContent(txnId) {
-  return 'CL' + txnId.replace(/-/g,'').slice(0,10).toUpperCase();
+  const code = 'CL' + txnId.replace(/-/g,'').slice(0,10).toUpperCase();
+  const name = (me.name || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toUpperCase().replace(/[^A-Z ]/g,'').trim();
+  return `${code} ${name} CHUYEN TIEN CAU LONG`;
 }
 
 function copyDepContent() {
