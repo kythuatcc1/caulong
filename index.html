@@ -398,6 +398,12 @@ body {
 <script>
 const SUPA_URL = 'https://sbyklnmmpicgtjgiybrk.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNieWtsbm1tcGljZ3RqZ2l5YnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDg0MTMsImV4cCI6MjA4OTUyNDQxM30.MNsdqKs6CuMSNL4aXlt-COhlOWf_C4YSgVvN5P2LvYo';
+
+// ── Cấu hình ngân hàng nhận tiền quỹ ──
+// Thay bằng thông tin tài khoản thực của bạn
+const BANK_ID      = 'BIDV';
+const BANK_ACCOUNT = '96247888707171';
+const BANK_NAME    = 'LE QUANG HUY';
 </script>
 
 <div class="toast" id="toast"></div>
@@ -871,28 +877,85 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
      BOTTOM SHEET: ĐÓNG QUỸ
 ══════════════════════════════ -->
 <div class="sheet-bg" id="deposit-sheet-bg" onclick="closeDepositSheet(event)">
-  <div class="sheet" onclick="event.stopPropagation()">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:92vh;overflow-y:auto">
     <div class="sheet-handle"></div>
-    <div style="font-size:17px;font-weight:800;margin-bottom:6px">Đóng quỹ</div>
-    <div style="color:var(--muted);font-size:13px;margin-bottom:18px">Sau khi gửi, admin sẽ xác nhận và cộng vào số dư của bạn</div>
-    <div class="fg">
-      <label class="fl">Số tiền đóng quỹ (đ)</label>
-      <input class="fi" id="dep-amount" type="number" placeholder="100000">
-    </div>
-    <div class="fg">
-      <label class="fl">Ghi chú (tuỳ chọn)</label>
-      <input class="fi" id="dep-note" type="text" placeholder="VD: Đóng quỹ tháng 3">
-    </div>
-    <div class="fg">
-      <label class="fl">Hình hóa đơn / chuyển khoản</label>
-      <div class="receipt-upload" onclick="triggerDepositReceipt()" id="dep-receipt-btn">
-        <div style="font-size:28px;margin-bottom:6px">📷</div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:3px" id="dep-receipt-label">Chọn ảnh hóa đơn</div>
-        <div style="font-size:11px;color:var(--muted)">Chụp màn hình chuyển khoản</div>
+
+    <!-- BƯỚC 1: Nhập số tiền -->
+    <div id="dep-step-1">
+      <div style="font-size:17px;font-weight:800;margin-bottom:6px">🏦 Đóng quỹ</div>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:18px">Nhập số tiền — app sẽ tạo mã QR để chuyển khoản tự động</div>
+      <div class="fg">
+        <label class="fl">Số tiền đóng quỹ (đ)</label>
+        <input class="fi" id="dep-amount" type="number" placeholder="100000" inputmode="numeric">
       </div>
-      <input type="file" id="dep-receipt-input" accept="image/*" style="display:none" onchange="onDepositReceiptSelected(this)">
+      <div class="fg">
+        <label class="fl">Ghi chú (tuỳ chọn)</label>
+        <input class="fi" id="dep-note" type="text" placeholder="VD: Đóng quỹ tháng 3">
+      </div>
+      <button class="btn" onclick="startDeposit()" style="background:#a78bfa;color:#0a0520">
+        📲 Tạo mã QR chuyển khoản
+      </button>
     </div>
-    <button class="btn" onclick="submitDeposit()" style="background:#a78bfa;color:#0a0520">Gửi yêu cầu đóng quỹ</button>
+
+    <!-- BƯỚC 2: Quét QR -->
+    <div id="dep-step-2" style="display:none">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <button onclick="backToDepStep1()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">←</button>
+        <div style="font-size:17px;font-weight:800">Quét QR chuyển khoản</div>
+      </div>
+
+      <!-- Số tiền nổi bật -->
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Số tiền cần chuyển</div>
+        <div id="dep-qr-amount" style="font-size:28px;font-weight:800;color:#a78bfa"></div>
+      </div>
+
+      <!-- QR Code -->
+      <div style="background:#fff;border-radius:16px;padding:12px;margin-bottom:14px;text-align:center">
+        <img id="dep-qr-img" src="" alt="QR Code" style="width:100%;max-width:260px;height:auto;border-radius:8px;display:block;margin:0 auto">
+      </div>
+
+      <!-- Thông tin ngân hàng -->
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;font-weight:600">Thông tin chuyển khoản</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:12px;color:var(--muted)">Ngân hàng</span>
+          <span id="dep-bank-name" style="font-size:13px;font-weight:700"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:12px;color:var(--muted)">Số tài khoản</span>
+          <span id="dep-account-no" style="font-size:13px;font-weight:700;font-family:monospace"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:12px;color:var(--muted)">Chủ tài khoản</span>
+          <span id="dep-account-name" style="font-size:13px;font-weight:700"></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12px;color:var(--muted)">Nội dung CK</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span id="dep-transfer-content" style="font-size:12px;font-weight:700;color:var(--accent);font-family:monospace"></span>
+            <button onclick="copyDepContent()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;color:var(--muted);cursor:pointer">Sao chép</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trạng thái chờ -->
+      <div id="dep-status-box" style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);
+        border-radius:12px;padding:12px 14px;text-align:center;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px">
+          <div class="spin" style="width:16px;height:16px;border-width:2px"></div>
+          <span style="font-size:13px;font-weight:600;color:#fbbf24">Đang chờ xác nhận tự động...</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">Chuyển khoản xong, app sẽ tự xác nhận trong vài giây</div>
+      </div>
+
+      <button onclick="closeDepositSheet({})" style="width:100%;padding:12px;border-radius:12px;
+        background:var(--bg3);border:1px solid var(--border);color:var(--muted);
+        font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
+        Đóng (chờ xác nhận sau)
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -2819,55 +2882,109 @@ function renderFundTxnList(txns, el, showUser) {
 }
 
 // ─────────────────────────────────────
-// DEPOSIT SHEET (đóng quỹ)
+// DEPOSIT SHEET — QR tự động + SePay
 // ─────────────────────────────────────
-let depReceiptFile = null;
+let depReceiptFile  = null;
+let depTxnId        = null;   // ID giao dịch pending hiện tại
+let depPollTimer    = null;   // Timer poll xác nhận
 
 function openDepositSheet() {
   depReceiptFile = null;
+  depTxnId       = null;
+  clearInterval(depPollTimer);
   document.getElementById('dep-amount').value = '';
   document.getElementById('dep-note').value   = '';
-  document.getElementById('dep-receipt-label').textContent = 'Chọn ảnh hóa đơn';
+  document.getElementById('dep-step-1').style.display = '';
+  document.getElementById('dep-step-2').style.display = 'none';
   document.getElementById('deposit-sheet-bg').classList.add('show');
 }
+
 function closeDepositSheet(e) {
-  if (!e || e.target === document.getElementById('deposit-sheet-bg'))
+  if (!e || !e.target || e.target === document.getElementById('deposit-sheet-bg')) {
+    clearInterval(depPollTimer);
     document.getElementById('deposit-sheet-bg').classList.remove('show');
-}
-function triggerDepositReceipt() {
-  document.getElementById('dep-receipt-input').click();
-}
-function onDepositReceiptSelected(input) {
-  depReceiptFile = input.files?.[0] || null;
-  document.getElementById('dep-receipt-label').textContent = depReceiptFile ? `✓ ${depReceiptFile.name}` : 'Chọn ảnh hóa đơn';
+  }
 }
 
-async function submitDeposit() {
+function backToDepStep1() {
+  clearInterval(depPollTimer);
+  document.getElementById('dep-step-1').style.display = '';
+  document.getElementById('dep-step-2').style.display = 'none';
+}
+
+// Sinh nội dung chuyển khoản ngắn gọn từ txnId
+function depContent(txnId) {
+  return 'CL' + txnId.replace(/-/g,'').slice(0,10).toUpperCase();
+}
+
+function copyDepContent() {
+  const content = document.getElementById('dep-transfer-content').textContent;
+  navigator.clipboard.writeText(content);
+  toast('Đã sao chép nội dung CK 📋', 'ok');
+}
+
+async function startDeposit() {
   const amount = parseFloat(document.getElementById('dep-amount').value) || 0;
   const note   = document.getElementById('dep-note').value.trim();
-  if (!amount) return toast('Nhập số tiền đóng quỹ', 'err');
+  if (!amount || amount < 1000) return toast('Nhập số tiền tối thiểu 1,000đ', 'err');
   load(true);
 
-  let receiptUrl = null;
-  if (depReceiptFile) {
-    try { receiptUrl = await compressToBase64(depReceiptFile, 900, 0.75); }
-    catch(e) { load(false); return toast('Lỗi xử lý ảnh','err'); }
-  }
-
-  const { error } = await db.from('fund_transactions').insert({
+  // Tạo fund_transaction pending ngay để lấy ID làm mã CK
+  const { data: txn, error } = await db.from('fund_transactions').insert({
     user_id:     me.id,
     amount:      amount,
     type:        'deposit',
     description: note || null,
-    receipt_url: receiptUrl,
     status:      'pending'
-  });
+  }).select().single();
   load(false);
   if (error) return toast(error.message, 'err');
-  closeDepositSheet({});
-  toast('✓ Đã gửi yêu cầu! Admin sẽ xác nhận sớm', 'ok');
-  loadFundPage();
+
+  depTxnId = txn.id;
+  const content = depContent(txn.id);
+
+  // Sinh QR VietQR
+  const qrUrl = `https://img.vietqr.io/image/${BANK_ID}-${BANK_ACCOUNT}-compact2.png`
+    + `?amount=${amount}&addInfo=${encodeURIComponent(content)}&accountName=${encodeURIComponent(BANK_NAME)}`;
+
+  // Hiện bước 2
+  document.getElementById('dep-step-1').style.display = 'none';
+  document.getElementById('dep-step-2').style.display = '';
+  document.getElementById('dep-qr-amount').textContent = fmt(amount);
+  document.getElementById('dep-qr-img').src            = qrUrl;
+  document.getElementById('dep-bank-name').textContent    = BANK_ID;
+  document.getElementById('dep-account-no').textContent   = BANK_ACCOUNT;
+  document.getElementById('dep-account-name').textContent = BANK_NAME;
+  document.getElementById('dep-transfer-content').textContent = content;
+
+  // Bắt đầu poll xác nhận mỗi 4 giây
+  clearInterval(depPollTimer);
+  depPollTimer = setInterval(() => pollDepositConfirmed(txn.id, amount), 4000);
 }
+
+async function pollDepositConfirmed(txnId, amount) {
+  const { data: txn } = await db.from('fund_transactions')
+    .select('status').eq('id', txnId).single();
+  if (!txn) return;
+
+  if (txn.status === 'confirmed') {
+    clearInterval(depPollTimer);
+    // Cập nhật số dư local
+    await refreshBalance();
+    // Đóng sheet và thông báo
+    document.getElementById('deposit-sheet-bg').classList.remove('show');
+    toast(`✅ Đã xác nhận +${fmt(amount)} vào quỹ!`, 'ok');
+    loadFundPage();
+  } else if (txn.status === 'rejected') {
+    clearInterval(depPollTimer);
+    document.getElementById('dep-status-box').innerHTML =
+      `<div style="color:var(--red);font-weight:700">✕ Giao dịch bị từ chối</div>
+       <div style="font-size:11px;color:var(--muted);margin-top:4px">Liên hệ admin để biết thêm</div>`;
+  }
+}
+
+// Giữ lại submitDeposit cũ cho khả năng tương thích (legacy)
+async function submitDeposit() { startDeposit(); }
 
 // ─────────────────────────────────────
 // ADMIN PAGE
