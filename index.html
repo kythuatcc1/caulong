@@ -45,7 +45,7 @@ body {
 .hdr {
   padding:48px 20px 13px; display:flex; align-items:center; gap:12px;
   background:var(--bg); position:sticky; top:0; z-index:20;
-  border-bottom:1px solid var(--border);
+  border-bottom:1px solid var(--border); overflow:visible;
 }
 .hdr-title { font-size:17px; font-weight:700; flex:1; }
 .content { flex:1; padding:16px 20px 110px; }
@@ -98,11 +98,13 @@ body {
     background:var(--bg2); border-right:1px solid var(--border);
     position:fixed; top:0; left:0; bottom:0;
     display:flex; flex-direction:column; padding:28px 0 20px; z-index:50;
+    overflow:visible;
   }
   #sidebar-logo {
-    padding:0 20px 28px;
+    padding:4px 20px 32px;
     border-bottom:1px solid var(--border);
     margin-bottom:12px;
+    overflow:visible;
   }
   .snav-item {
     display:flex; align-items:center; gap:12px;
@@ -144,7 +146,7 @@ body {
 
 /* ── Auth ── */
 .auth-wrap { display:flex; flex-direction:column; justify-content:center; min-height:100vh; padding:48px 24px 40px; }
-.logo { font-family:'Syne',sans-serif; font-size:42px; font-weight:800; }
+.logo { font-family:'Be Vietnam Pro',sans-serif; font-size:42px; font-weight:800; line-height:1.3; text-transform:capitalize; letter-spacing:-0.5px; }
 .logo span { color:var(--accent); }
 
 /* ── Form ── */
@@ -410,7 +412,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 ══════════════════════════════ -->
 <div id="desktop-sidebar" style="display:none">
   <div id="sidebar-logo">
-    <div class="logo" style="font-size:26px">Cầu <span>Lông</span></div>
+    <div class="logo" style="font-size:22px;white-space:nowrap;padding-bottom:4px">Cầu <span>Lông</span></div>
     <div style="color:var(--muted);font-size:12px;margin-top:4px">Xin chào, <span id="sidebar-username" style="color:var(--text);font-weight:600"></span></div>
     <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
       <span style="font-size:10px;color:var(--muted)">Quỹ:</span>
@@ -523,7 +525,7 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 <div class="page" id="pg-home">
   <div class="hdr">
     <div style="flex:1">
-      <div class="logo" style="font-size:22px">Cầu <span>Lông</span></div>
+      <div class="logo" style="font-size:22px;padding-bottom:4px">Cầu <span>Lông</span></div>
       <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span> 👋
         · Quỹ: <span id="home-balance" style="font-weight:700;color:#a78bfa">—</span>
       </div>
