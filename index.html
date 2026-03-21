@@ -753,6 +753,34 @@ const BANK_NAME    = 'LE QUANG HUY';
 </div>
 
 <!-- ══════════════════════════════
+     BOTTOM SHEET: THÊM THÀNH VIÊN VÀO BUỔI (host only)
+══════════════════════════════ -->
+<div class="sheet-bg" id="add-member-sheet-bg" onclick="closeAddMemberSheet(event)">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;display:flex;flex-direction:column;padding-bottom:0">
+    <div class="sheet-handle"></div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:4px">👥 Thêm thành viên vào buổi</div>
+    <div style="color:var(--muted);font-size:13px;margin-bottom:12px">Chọn một hoặc nhiều thành viên rồi bấm <strong style="color:var(--accent2)">Đồng ý</strong></div>
+    <div style="margin-bottom:10px">
+      <input class="fi" id="add-member-search" type="text" placeholder="🔍 Tìm theo tên..."
+        oninput="filterAddMemberList(this.value)"
+        style="padding:11px 14px;font-size:14px">
+    </div>
+    <!-- Danh sách có thể scroll -->
+    <div id="add-member-list" style="overflow-y:auto;flex:1;min-height:0;margin:0 -20px;padding:0 20px"></div>
+    <!-- Nút Đồng ý sticky dưới cùng -->
+    <div style="padding:12px 0 4px;border-top:1px solid var(--border);margin-top:4px;flex-shrink:0">
+      <button id="add-member-confirm-btn" onclick="adminConfirmAddMembers()" disabled
+        style="width:100%;padding:14px;border-radius:14px;border:none;
+        background:var(--accent);color:#080d00;font-family:'Be Vietnam Pro',sans-serif;
+        font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;
+        display:flex;align-items:center;justify-content:center;gap:8px;opacity:.35">
+        ✓ Đồng ý thêm <span id="add-member-confirm-count"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
      TRANG: THANH TOÁN
 ══════════════════════════════ -->
 <div class="page" id="pg-payment">
@@ -1604,6 +1632,23 @@ function renderSession() {
     const name   = m.profiles?.name || '?';
     const joined = confirmedIds.has(uid);
     const isMe   = uid === me.id;
+
+    // Nút toggle vote cho admin (không phải chính mình, buổi chưa khoá)
+    const hostControls = me.is_admin && !isClosed && !isMe ? `
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <button onclick="adminToggleVote('${uid}')"
+          style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;
+          ${joined
+            ? 'background:rgba(200,255,71,.12);border:1px solid rgba(200,255,71,.35);color:var(--accent)'
+            : 'background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.2);color:var(--muted)'}">
+          ${joined ? '✅ Tham gia' : '⬜ Xác nhận'}
+        </button>
+        <button onclick="adminRemoveMember('${uid}','${name}')"
+          title="Xoá khỏi buổi"
+          style="padding:5px 8px;border-radius:8px;font-size:11px;cursor:pointer;flex-shrink:0;
+          background:none;border:1px solid rgba(239,68,68,.2);color:var(--red)">✕</button>
+      </div>` : `<span style="font-size:22px">${joined ? '✅' : '⬜'}</span>`;
+
     return `
       <div class="mrow ${joined ? 'has-voted-border' : ''}">
         <div class="av" style="background:${ac(uid)}">${initials(name)}</div>
@@ -1616,11 +1661,19 @@ function renderSession() {
             ${joined ? '✓ Đã xác nhận tham gia' : '○ Chưa xác nhận'}
           </div>
         </div>
-        <span style="font-size:22px">${joined ? '✅' : '⬜'}</span>
+        ${hostControls}
       </div>`;
   }).join('') || '<div class="empty"><div class="empty-icon">👥</div><div>Chưa có thành viên nào</div></div>';
 
-  document.getElementById('vote-list').innerHTML = myBtn + memberRows;
+  // Nút thêm thành viên (admin only, buổi đang mở)
+  const addMemberBtn = me.is_admin && !isClosed ? `
+    <button onclick="openAddMemberSheet()"
+      style="margin-top:8px;width:100%;padding:11px;border-radius:12px;
+      background:rgba(71,212,255,.08);border:1px dashed rgba(71,212,255,.3);
+      color:var(--accent2);font-family:'Be Vietnam Pro',sans-serif;font-size:13px;
+      font-weight:700;cursor:pointer">+ Thêm thành viên từ danh sách</button>` : '';
+
+  document.getElementById('vote-list').innerHTML = myBtn + memberRows + addMemberBtn;
 
   document.getElementById('pay-btn-wrap').innerHTML = isClosed
     ? `<button class="btn" style="background:var(--accent2);color:#040e18;margin-top:4px" onclick="openPayment()">💰 Xem thanh toán</button>`
@@ -1734,6 +1787,168 @@ async function doEditSession() {
   closeEditSheet({});
   toast('✓ Đã cập nhật thông tin buổi', 'ok');
   renderSession();
+}
+
+// ═══════════════════════════════════════
+// ADMIN CONTROLS — toggle vote & add member (host only)
+// ═══════════════════════════════════════
+
+// Bật/tắt trạng thái tham gia của một thành viên (host thao tác thay)
+async function adminToggleVote(uid) {
+  const { session, votes } = curSession;
+  const exist = votes.find(v => v.voter_id === uid && v.target_id === uid);
+  if (exist) {
+    // Đã vote → xoá
+    await db.from('votes').delete().eq('id', exist.id);
+    curSession.votes = votes.filter(v => v.id !== exist.id);
+    toast('Đã đổi thành chưa xác nhận');
+  } else {
+    // Chưa vote → thêm
+    const { data } = await db.from('votes').insert({
+      session_id: session.id,
+      voter_id:   uid,
+      target_id:  uid
+    }).select().single();
+    if (data) curSession.votes.push(data);
+    toast('✓ Đã xác nhận tham gia cho thành viên', 'ok');
+  }
+  renderSession();
+}
+
+// Xoá thành viên khỏi buổi (và xoá vote của họ nếu có)
+async function adminRemoveMember(uid, name) {
+  if (!confirm(`Xoá ${name} khỏi buổi này?`)) return;
+  const sid = curSession.session.id;
+  // Xoá vote
+  await db.from('votes').delete().eq('session_id', sid).eq('voter_id', uid);
+  // Xoá khỏi session_members
+  await db.from('session_members').delete().eq('session_id', sid).eq('user_id', uid);
+  curSession.members = curSession.members.filter(m => m.user_id !== uid);
+  curSession.votes   = curSession.votes.filter(v => !(v.voter_id === uid || v.target_id === uid));
+  toast(`Đã xoá ${name} khỏi buổi`);
+  renderSession();
+}
+
+// ─── Add member sheet ───
+let allProfiles = [];
+let pendingAddIds = new Set(); // UIDs đã chọn nhưng chưa confirm
+
+function openAddMemberSheet() {
+  pendingAddIds = new Set();
+  document.getElementById('add-member-search').value = '';
+  document.getElementById('add-member-list').innerHTML =
+    '<div class="empty"><div class="spin" style="margin:0 auto"></div></div>';
+  // Reset nút về trạng thái gốc (tránh lỗi span bị mất sau lần confirm trước)
+  resetConfirmBtn();
+  updateConfirmBtn();
+  document.getElementById('add-member-sheet-bg').classList.add('show');
+  loadAllProfilesForPicker();
+}
+
+function closeAddMemberSheet(e) {
+  if (!e || e.target === document.getElementById('add-member-sheet-bg'))
+    document.getElementById('add-member-sheet-bg').classList.remove('show');
+}
+
+function updateConfirmBtn() {
+  const n   = pendingAddIds.size;
+  const btn = document.getElementById('add-member-confirm-btn');
+  const lbl = document.getElementById('add-member-confirm-count');
+  btn.disabled      = n === 0;
+  btn.style.opacity = n === 0 ? '.35' : '1';
+  btn.style.cursor  = n === 0 ? 'not-allowed' : 'pointer';
+  lbl.textContent   = n > 0 ? `(${n} người)` : '';
+}
+
+async function loadAllProfilesForPicker() {
+  const { data: profiles } = await db.from('profiles').select('id,name,phone').order('name');
+  allProfiles = profiles || [];
+  renderAddMemberList('');
+}
+
+function filterAddMemberList(q) {
+  renderAddMemberList(q.trim().toLowerCase());
+}
+
+function renderAddMemberList(q) {
+  const currentIds = new Set(curSession.members.map(m => m.user_id));
+  const filtered = allProfiles.filter(p => {
+    if (currentIds.has(p.id)) return false;
+    if (!q) return true;
+    return (p.name||'').toLowerCase().includes(q) || (p.phone||'').includes(q);
+  });
+  const el = document.getElementById('add-member-list');
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty" style="padding:24px 0">
+      <div style="font-size:13px;color:var(--muted)">${q ? 'Không tìm thấy thành viên phù hợp' : 'Tất cả thành viên đã có trong buổi'}</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = filtered.map(p => {
+    const picked = pendingAddIds.has(p.id);
+    return `
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--border);
+      ${picked ? 'background:rgba(200,255,71,.04);border-radius:10px;' : ''}">
+      <div class="av" style="background:${ac(p.id)};width:38px;height:38px;font-size:13px;flex-shrink:0">${initials(p.name)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600">${p.name}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${p.phone||''}</div>
+      </div>
+      <button data-uid="${p.id}" onclick="togglePendingMember(this.dataset.uid)"
+        style="flex-shrink:0;padding:7px 14px;border-radius:10px;font-family:'Be Vietnam Pro',sans-serif;
+        font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;
+        ${picked
+          ? 'background:rgba(200,255,71,.15);border:1px solid rgba(200,255,71,.45);color:var(--accent)'
+          : 'background:rgba(71,212,255,.12);border:1px solid rgba(71,212,255,.3);color:var(--accent2)'}">
+        ${picked ? '✓ Đã chọn' : '+ Chọn'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function togglePendingMember(uid) {
+  if (pendingAddIds.has(uid)) {
+    pendingAddIds.delete(uid);
+  } else {
+    pendingAddIds.add(uid);
+  }
+  updateConfirmBtn();
+  // Re-render chỉ dòng đó bằng cách re-render toàn list (nhẹ, không bị flicker)
+  const q = document.getElementById('add-member-search').value.trim().toLowerCase();
+  renderAddMemberList(q);
+}
+
+function resetConfirmBtn() {
+  const btn = document.getElementById('add-member-confirm-btn');
+  if (!btn) return;
+  // Khôi phục innerHTML để span bên trong không bị mất
+  btn.innerHTML = '\u2713 \u0110\u1ed3ng \u00fd th\u00eam <span id="add-member-confirm-count"></span>';
+}
+
+async function adminConfirmAddMembers() {
+  if (pendingAddIds.size === 0) return;
+  const btn = document.getElementById('add-member-confirm-btn');
+  btn.disabled = true;
+  btn.innerHTML = '\u23f3 \u0110ang th\u00eam... <span id="add-member-confirm-count"></span>';
+
+  const sid = curSession.session.id;
+  const rows = [...pendingAddIds].map(uid => ({ session_id: sid, user_id: uid }));
+
+  const { error } = await db.from('session_members')
+    .upsert(rows, { onConflict: 'session_id,user_id' });
+
+  if (error) {
+    toast(error.message, 'err');
+    resetConfirmBtn();
+    updateConfirmBtn();
+    return;
+  }
+
+  const count = pendingAddIds.size;
+  pendingAddIds = new Set();
+  resetConfirmBtn();
+  document.getElementById('add-member-sheet-bg').classList.remove('show');
+  toast('\u2713 \u0110\u00e3 th\u00eam ' + count + ' th\u00e0nh vi\u00ean v\u00e0o bu\u1ed5i', 'ok');
 }
 
 // ═══════════════════════════════════════
