@@ -504,8 +504,11 @@ const BANK_NAME    = 'LE QUANG HUY';
       </div>
       <div class="fg">
         <label class="fl">Số điện thoại</label>
-        <input class="fi" id="a-phone" type="tel" placeholder="0912 345 678" autocomplete="tel">
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">App sẽ ghi nhớ tài khoản — lần sau mở là vào ngay</p>
+        <input class="fi" id="a-phone" type="tel" placeholder="0912 345 678" autocomplete="tel"
+          maxlength="12"
+          oninput="fmtPhoneInput(this)"
+          onkeydown="if(event.key==='Enter')doEnter()">
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Bắt đầu bằng số <strong style="color:var(--accent)">0</strong>, đủ <strong style="color:var(--accent)">10 chữ số</strong> — App sẽ ghi nhớ tài khoản</p>
       </div>
       <button class="btn" onclick="doEnter()">Vào app →</button>
 
@@ -1265,6 +1268,20 @@ function fmtD(iso) {
 function initials(name) { return (name||'?').split(' ').map(w=>w[0]).slice(-2).join('').toUpperCase(); }
 const AVC = ['rgba(200,255,71,.2)','rgba(71,212,255,.2)','rgba(255,107,71,.2)','rgba(167,139,250,.2)','rgba(251,146,60,.2)','rgba(52,211,153,.2)'];
 function ac(str) { let h=0; for(let c of (str||'')) h=(h*31+c.charCodeAt(0))&0xffff; return AVC[h%AVC.length]; }
+function fmtPhoneInput(el) {
+  // Chỉ giữ số
+  let digits = el.value.replace(/\D/g, '');
+  // Giới hạn 10 chữ số
+  if (digits.length > 10) digits = digits.slice(0, 10);
+  // Format: 0912 345 678
+  let formatted = digits;
+  if (digits.length > 7)      formatted = digits.slice(0,4) + ' ' + digits.slice(4,7) + ' ' + digits.slice(7);
+  else if (digits.length > 4) formatted = digits.slice(0,4) + ' ' + digits.slice(4);
+  el.value = formatted;
+  // Đổi màu border báo hợp lệ / không
+  const valid = digits.length === 10 && digits[0] === '0';
+  el.style.borderColor = digits.length === 0 ? '' : valid ? 'rgba(34,197,94,.5)' : 'rgba(239,68,68,.45)';
+}
 function normPhone(p) { return p.replace(/\D/g,''); }
 function genCode() { return Math.random().toString(36).substring(2,8).toUpperCase(); }
 
@@ -1275,8 +1292,9 @@ async function doEnter() {
   if (!db) return toast('Chưa cấu hình Supabase','err');
   const name = document.getElementById('a-name').value.trim();
   const phone = normPhone(document.getElementById('a-phone').value);
-  if (!name) return toast('Nhập tên của bạn nhé','err');
-  if (phone.length < 9) return toast('Số điện thoại chưa đúng','err');
+  if (!name) return toast('Nhập họ và tên của bạn nhé','err');
+  if (phone.length !== 10) return toast('Số điện thoại phải đủ 10 chữ số','err');
+  if (phone[0] !== '0') return toast('Số điện thoại phải bắt đầu bằng số 0','err');
   load(true);
   const { data: existing } = await db.from('profiles').select('*').eq('phone',phone).single();
   if (existing) {
