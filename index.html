@@ -594,6 +594,9 @@ const BANK_NAME    = 'LE QUANG HUY';
       <div id="host-close-btn" style="display:none">
         <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--accent);border-color:rgba(200,255,71,.3)" onclick="doClose()">Khóa buổi ✓</button>
       </div>
+      <div id="host-cancel-btn" style="display:none">
+        <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--red);border-color:rgba(239,68,68,.3)" onclick="openCancelModal()">🗑 Huỷ</button>
+      </div>
     </div>
   </div>
   <div class="content">
@@ -778,6 +781,35 @@ const BANK_NAME    = 'LE QUANG HUY';
         font-size:15px;font-weight:700;cursor:pointer;transition:all .15s;
         display:flex;align-items:center;justify-content:center;gap:8px;opacity:.35">
         ✓ Đồng ý thêm <span id="add-member-confirm-count"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     MODAL: XÁC NHẬN HUỶ BUỔI
+══════════════════════════════ -->
+<div class="overlay" id="cancel-session-overlay" style="z-index:600">
+  <div style="background:var(--bg2);border:1px solid rgba(239,68,68,.35);border-radius:20px;
+    padding:28px 24px;max-width:360px;width:90%;text-align:center;position:relative">
+    <div style="font-size:44px;margin-bottom:12px">🗑</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:8px">Huỷ buổi vote?</div>
+    <div style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:22px">
+      Toàn bộ dữ liệu vote của buổi <strong id="cancel-session-name" style="color:var(--text)"></strong>
+      sẽ bị xoá vĩnh viễn.<br>
+      <span style="color:var(--red);font-weight:600">Hành động này không thể hoàn tác.</span>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeCancelModal()"
+        style="flex:1;padding:13px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);
+        color:var(--muted);font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
+        Giữ lại
+      </button>
+      <button onclick="doCancel()"
+        style="flex:1;padding:13px;border-radius:12px;background:rgba(239,68,68,.15);
+        border:1px solid rgba(239,68,68,.4);color:var(--red);
+        font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
+        ✕ Huỷ buổi
       </button>
     </div>
   </div>
@@ -1467,7 +1499,7 @@ function renderSessionCard(s) {
     <div class="card" onclick="openSession('${s.id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div class="card-title" style="flex:1">${s.title}</div>
-        <span class="badge ${s.status==='voting'?'bv':'bc'}">${s.status==='voting'?'Đang mở':'Đã khóa'}</span>
+        <span class="badge ${s.status==='voting'?'bv':s.status==='cancelled'?'bu':'bc'}">${s.status==='voting'?'Đang mở':s.status==='cancelled'?'Đã huỷ':'Đã khóa'}</span>
       </div>
       <div style="color:var(--muted);font-size:12px;margin-top:5px">${[s.location, s.scheduled_at?fmtD(s.scheduled_at):''].filter(Boolean).join(' · ')}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
@@ -1589,8 +1621,9 @@ function switchSessionTab(tab, silent=false) {
 // ═══════════════════════════════════════
 function renderSession() {
   const { session, members, votes } = curSession;
-  const isHost   = session.host_id === me.id;
-  const isClosed = session.status === 'closed';
+  const isHost     = session.host_id === me.id;
+  const isClosed   = session.status === 'closed';
+  const isCancelled = session.status === 'cancelled';
 
   document.getElementById('s-hdr').textContent      = session.title;
   document.getElementById('s-title').textContent    = session.title;
@@ -1601,11 +1634,12 @@ function renderSession() {
   document.getElementById('s-host-lbl').textContent = `Host: ${session.profiles?.name||'?'}`;
 
   const badge = document.getElementById('s-badge');
-  badge.className   = 'badge ' + (isClosed ? 'bc' : 'bv');
-  badge.textContent = isClosed ? 'Đã khóa' : 'Đang mở';
+  badge.className   = 'badge ' + (isCancelled ? 'bu' : isClosed ? 'bc' : 'bv');
+  badge.textContent = isCancelled ? 'Đã huỷ' : isClosed ? 'Đã khóa' : 'Đang mở';
 
-  document.getElementById('host-close-btn').style.display    = isHost && !isClosed ? '' : 'none';
-  document.getElementById('host-edit-btn').style.display     = isHost && !isClosed ? '' : 'none';
+  document.getElementById('host-close-btn').style.display  = isHost && !isClosed && !isCancelled ? '' : 'none';
+  document.getElementById('host-edit-btn').style.display   = isHost && !isClosed && !isCancelled ? '' : 'none';
+  document.getElementById('host-cancel-btn').style.display = isHost && !isClosed && !isCancelled ? '' : 'none';
 
   // Ai đã tự xác nhận tham gia (voter_id = target_id)
   const confirmedIds = new Set(
@@ -1622,7 +1656,9 @@ function renderSession() {
   renderGuestList();
 
   // ── TAB: Bình chọn ──
-  document.getElementById('s-hint').textContent = isClosed
+  document.getElementById('s-hint').textContent = isCancelled
+    ? 'Buổi này đã bị huỷ'
+    : isClosed
     ? `Buổi đã khóa — ${confirmedCount} người xác nhận tham gia`
     : `${confirmedCount}/${members.length} người đã xác nhận tham gia`;
 
@@ -2367,6 +2403,33 @@ async function saveExpense() {
 // ═══════════════════════════════════════
 // KHÓA BUỔI — tính tiền đầy đủ kể cả expenses
 // ═══════════════════════════════════════
+// ═══════════════════════════════════════
+// HUỶ BUỔI (host only, chỉ khi đang voting)
+// ═══════════════════════════════════════
+function openCancelModal() {
+  const { session } = curSession;
+  document.getElementById('cancel-session-name').textContent = '"' + session.title + '"';
+  document.getElementById('cancel-session-overlay').classList.add('show');
+}
+
+function closeCancelModal() {
+  document.getElementById('cancel-session-overlay').classList.remove('show');
+}
+
+async function doCancel() {
+  const { session } = curSession;
+  closeCancelModal();
+  load(true);
+  const { error } = await db.from('sessions')
+    .update({ status: 'cancelled' })
+    .eq('id', session.id);
+  load(false);
+  if (error) return toast(error.message, 'err');
+  curSession.session = { ...session, status: 'cancelled' };
+  toast('Đã huỷ buổi vote', 'ok');
+  renderSession();
+}
+
 async function doClose() {
   const { session, votes, members } = curSession;
   const guests = curSession.guests || [];
