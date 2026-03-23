@@ -1504,7 +1504,7 @@ async function loadHome() {
     const { data: sessions } = await db.from('sessions')
       .select('*, profiles!host_id(name)')
       .eq('status','voting')
-      .order('scheduled_at',{ascending:true,nullsFirst:false});
+      .order('created_at',{ascending:false});
 
     if (!sessions?.length) {
       el.innerHTML = '<div class="empty"><div class="empty-icon">🏸</div><div>Chưa có buổi bình chọn nào đang mở.<br>Bấm <strong style="color:var(--accent)">Tạo buổi</strong> để bắt đầu!</div></div>';
@@ -1530,7 +1530,7 @@ async function loadHome() {
     }
     const { data: sessions } = await db.from('sessions')
       .select('*, profiles!host_id(name)')
-      .in('id',ids).order('scheduled_at',{ascending:true,nullsFirst:false});
+      .in('id',ids).order('created_at',{ascending:false});
     if (!sessions?.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div>Chưa có buổi nào</div></div>'; return; }
     const sids2 = sessions.map(s => s.id);
     const [{ data: voteRows2 }, { data: memberRows2 }] = await Promise.all([
