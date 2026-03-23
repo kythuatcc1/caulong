@@ -348,7 +348,7 @@ body {
   padding:20px; margin-bottom:16px; position:relative; overflow:hidden;
 }
 .fund-hero::after { content:'🏦'; position:absolute; right:14px; top:10px; font-size:56px; opacity:.08; }
-.fund-bal { font-family:'Syne',sans-serif; font-size:38px; font-weight:800; color:#a78bfa; }
+.fund-bal { font-family:'Be Vietnam Pro',sans-serif; font-size:38px; font-weight:800; color:#a78bfa; }
 .fund-bal.low { color:var(--red); }
 
 .ftx-row {
@@ -402,8 +402,8 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 // ── Cấu hình ngân hàng nhận tiền quỹ ──
 // Thay bằng thông tin tài khoản thực của bạn
 const BANK_ID      = 'BIDV';
-const BANK_ACCOUNT = '96247888707171';
-const BANK_NAME    = 'LE QUANG HUY';
+const BANK_ACCOUNT = '96247KIMKHANH';
+const BANK_NAME    = 'NGUYEN KIM KHANH';
 </script>
 
 <div class="toast" id="toast"></div>
@@ -421,8 +421,12 @@ const BANK_NAME    = 'LE QUANG HUY';
     <div class="logo" style="font-size:22px;white-space:nowrap;padding-bottom:4px">Cầu <span>Lông</span></div>
     <div style="color:var(--muted);font-size:12px;margin-top:4px">Xin chào, <span id="sidebar-username" style="color:var(--text);font-weight:600"></span></div>
     <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
-      <span style="font-size:10px;color:var(--muted)">Quỹ:</span>
+      <span style="font-size:10px;color:var(--muted)">Quỹ của tôi:</span>
       <span id="sidebar-balance" style="font-size:13px;font-weight:700;color:#a78bfa">—</span>
+    </div>
+    <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+      <span style="font-size:10px;color:var(--muted)">Quỹ tổng:</span>
+      <span id="sidebar-total-fund" style="font-size:13px;font-weight:700;color:#a78bfa">—</span>
     </div>
   </div>
   <button class="snav-item active" id="snav-home" onclick="goPage('pg-home')">
@@ -536,7 +540,8 @@ const BANK_NAME    = 'LE QUANG HUY';
     <div style="flex:1">
       <div class="logo" style="font-size:22px;padding-bottom:4px">Cầu <span>Lông</span></div>
       <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span> 👋
-        · Quỹ: <span id="home-balance" style="font-weight:700;color:#a78bfa">—</span>
+        · Quỹ tôi: <span id="home-balance" style="font-weight:700;color:#a78bfa">—</span>
+        · Tổng: <span id="home-total-fund" style="font-weight:700;color:#a78bfa">—</span>
       </div>
     </div>
     <button class="btn-ghost" onclick="doExit()" style="padding:7px 12px;font-size:12px">Đổi SĐT</button>
@@ -876,6 +881,10 @@ const BANK_NAME    = 'LE QUANG HUY';
       <div style="color:var(--muted);font-size:12px;margin-bottom:6px">Số dư quỹ của bạn</div>
       <div class="fund-bal" id="fund-balance">0đ</div>
       <div style="color:var(--muted);font-size:12px;margin-top:6px" id="fund-status-text"></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between">
+        <span style="color:var(--muted);font-size:12px">🏦 Tổng quỹ chung</span>
+        <span id="fund-total-all" style="font-size:14px;font-weight:700;color:#a78bfa">—</span>
+      </div>
     </div>
 
     <!-- Nút đóng quỹ -->
@@ -1265,7 +1274,7 @@ function goPage(id) {
     sidebar.style.display = noSidebar ? 'none' : '';
     document.getElementById('desktop-main').style.marginLeft = noSidebar ? '0' : '';
   }
-  if (id === 'pg-home') { loadHome(); refreshBalance(); }
+  if (id === 'pg-home') { loadHome(); refreshBalance(); refreshTotalFundDisplay(); }
   if (id === 'pg-fund') loadFundPage();
   if (id === 'pg-admin') loadAdminPage();
 }
@@ -1355,6 +1364,7 @@ async function doEnter() {
   toast(`Chào ${me.name}! 🏸`,'ok');
   startAllRealtime();
   goPage('pg-home');
+  refreshTotalFundDisplay();
   setTimeout(checkAndShowLowFundAlert, 800);
 }
 function doExit() {
@@ -1369,26 +1379,55 @@ function doExit() {
 // ═══════════════════════════════════════
 let homeCh = null, fundCh = null, adminCh = null, paymentCh = null;
 let balancePollTimer = null;
+let fundPollTimer = null;
 
 function isActive(pageId) {
   return document.getElementById(pageId)?.classList.contains('active');
 }
 
-// Fetch số dư mới nhất và cập nhật hiển thị ngay
-async function refreshBalance() {
+// Fetch song song số dư cá nhân + quỹ tổng, cập nhật toàn bộ UI ngay
+async function refreshAllFund() {
   if (!me?.id || !db) return;
-  const { data: p } = await db.from('profiles').select('fund_balance').eq('id', me.id).single();
-  if (p && p.fund_balance !== me.fund_balance) {
-    me.fund_balance = p.fund_balance;
-    updateBalanceDisplay(me.fund_balance || 0);
-    localStorage.setItem('cvUser', JSON.stringify(me));
-    if (isActive('pg-fund')) loadFundPage();
+  const [{ data: p }, { data: allProfs }] = await Promise.all([
+    db.from('profiles').select('fund_balance').eq('id', me.id).single(),
+    db.from('profiles').select('fund_balance')
+  ]);
+
+  // Cập nhật quỹ cá nhân
+  if (p) {
+    const newBal = p.fund_balance ?? 0;
+    if (newBal !== me.fund_balance) {
+      me.fund_balance = newBal;
+      localStorage.setItem('cvUser', JSON.stringify(me));
+      if (isActive('pg-fund')) loadFundPage();
+    }
+    updateBalanceDisplay(newBal);
+  }
+
+  // Cập nhật quỹ tổng (sidebar + home + fund page)
+  if (allProfs) {
+    const total = allProfs.reduce((s, x) => s + (x.fund_balance || 0), 0);
+    const color = total < 0 ? 'var(--red)' : 'var(--accent2)';
+    const text  = (total < 0 ? '-' : '') + fmt(Math.abs(total));
+    ['sidebar-total-fund', 'home-total-fund', 'fund-total-all'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = text; el.style.color = color; }
+    });
   }
 }
 
+// Giữ alias tương thích code cũ
+async function refreshBalance() { await refreshAllFund(); }
+
 function startBalancePoll() {
   if (balancePollTimer) clearInterval(balancePollTimer);
-  balancePollTimer = setInterval(refreshBalance, 8000); // poll mỗi 8 giây
+  balancePollTimer = setInterval(refreshAllFund, 100);
+}
+
+// Poll riêng 4 giây — đảm bảo realtime dù Supabase lag
+function startFundPoll() {
+  if (fundPollTimer) clearInterval(fundPollTimer);
+  fundPollTimer = setInterval(refreshAllFund, 100);
 }
 
 function startAllRealtime() {
@@ -1400,36 +1439,31 @@ function startAllRealtime() {
     })
     .subscribe();
 
-  // ── FUND: không dùng filter (không đáng tin) — dùng poll + navigate-fetch ──
+  // ── FUND: fund_transactions làm fast-path trigger (profiles UPDATE cần REPLICA IDENTITY FULL) ──
   if (fundCh) db.removeChannel(fundCh);
   fundCh = db.channel('rt-fund')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async () => {
-      await refreshBalance();
+      await refreshAllFund();
       if (isActive('pg-fund')) loadFundPage();
-    })
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, async (pl) => {
-      if (pl.new?.id === me.id) {
-        me.fund_balance = pl.new.fund_balance;
-        updateBalanceDisplay(me.fund_balance || 0);
-        localStorage.setItem('cvUser', JSON.stringify(me));
-        if (isActive('pg-fund')) loadFundPage();
-      }
     })
     .subscribe();
 
   // ── ADMIN: fund_transactions & profiles ──
   if (adminCh) db.removeChannel(adminCh);
   adminCh = db.channel('rt-admin')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async () => {
+      await refreshAllFund();
       if (isActive('pg-admin')) loadAdminPage();
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
+      await refreshAllFund();
       if (isActive('pg-admin')) loadAdminPage();
     })
     .subscribe();
 
-  // Bắt đầu poll số dư
+  // Poll 8s dự phòng + poll quỹ 4s cho realtime nhanh
   startBalancePoll();
+  startFundPoll();
 
   // ── PAYMENT: payments & guest_payments (session hiện tại) ──
   // startPaymentRealtime() được gọi riêng khi mở trang payment
@@ -1476,7 +1510,15 @@ async function loadHome() {
       el.innerHTML = '<div class="empty"><div class="empty-icon">🏸</div><div>Chưa có buổi bình chọn nào đang mở.<br>Bấm <strong style="color:var(--accent)">Tạo buổi</strong> để bắt đầu!</div></div>';
       return;
     }
-    el.innerHTML = sessions.map(s => renderSessionCard(s)).join('');
+    const sids = sessions.map(s => s.id);
+    const [{ data: voteRows }, { data: memberRows }] = await Promise.all([
+      db.from('votes').select('session_id,voter_id,target_id').in('session_id', sids),
+      db.from('session_members').select('session_id').in('session_id', sids)
+    ]);
+    const confirmedMap = {}, memberMap = {};
+    (voteRows||[]).forEach(v => { if (v.voter_id === v.target_id) confirmedMap[v.session_id] = (confirmedMap[v.session_id]||0)+1; });
+    (memberRows||[]).forEach(m => { memberMap[m.session_id] = (memberMap[m.session_id]||0)+1; });
+    el.innerHTML = sessions.map(s => renderSessionCard(s, confirmedMap[s.id]||0, memberMap[s.id]||0)).join('');
 
   } else {
     // Buổi của tôi (đã join hoặc host)
@@ -1490,11 +1532,20 @@ async function loadHome() {
       .select('*, profiles!host_id(name)')
       .in('id',ids).order('created_at',{ascending:false});
     if (!sessions?.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div>Chưa có buổi nào</div></div>'; return; }
-    el.innerHTML = sessions.map(s => renderSessionCard(s)).join('');
+    const sids2 = sessions.map(s => s.id);
+    const [{ data: voteRows2 }, { data: memberRows2 }] = await Promise.all([
+      db.from('votes').select('session_id,voter_id,target_id').in('session_id', sids2),
+      db.from('session_members').select('session_id').in('session_id', sids2)
+    ]);
+    const confirmedMap2 = {}, memberMap2 = {};
+    (voteRows2||[]).forEach(v => { if (v.voter_id === v.target_id) confirmedMap2[v.session_id] = (confirmedMap2[v.session_id]||0)+1; });
+    (memberRows2||[]).forEach(m => { memberMap2[m.session_id] = (memberMap2[m.session_id]||0)+1; });
+    el.innerHTML = sessions.map(s => renderSessionCard(s, confirmedMap2[s.id]||0, memberMap2[s.id]||0)).join('');
   }
 }
 
-function renderSessionCard(s) {
+function renderSessionCard(s, confirmedCount=0, totalCount=0) {
+  const countBadge = `<span style="background:rgba(200,255,71,.12);color:var(--accent);font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap">👥 ${confirmedCount}/${s.max_players||totalCount}</span>`;
   return `
     <div class="card" onclick="openSession('${s.id}')">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -1504,7 +1555,10 @@ function renderSessionCard(s) {
       <div style="color:var(--muted);font-size:12px;margin-top:5px">${[s.location, s.scheduled_at?fmtD(s.scheduled_at):''].filter(Boolean).join(' · ')}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
         <span style="color:var(--accent2);font-size:13px;font-weight:600">${fmt(s.court_fee)} / sân</span>
-        <span style="color:var(--muted);font-size:12px">Host: ${s.profiles?.name||'?'}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${countBadge}
+          <span style="color:var(--muted);font-size:12px">Host: ${s.profiles?.name||'?'}</span>
+        </div>
       </div>
     </div>
   `;
@@ -1667,16 +1721,16 @@ function renderSession() {
     <div style="margin-bottom:20px">
       ${iConfirmed
         ? `<button onclick="doVote()" style="width:100%;padding:18px;border-radius:16px;
-              background:rgba(200,255,71,.1);border:2px solid rgba(200,255,71,.4);
-              color:var(--accent);font-family:'Be Vietnam Pro',sans-serif;font-size:16px;font-weight:700;
+              background:rgba(239,68,68,.1);border:2px solid rgba(239,68,68,.4);
+              color:var(--red);font-family:'Be Vietnam Pro',sans-serif;font-size:16px;font-weight:700;
               cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">
-            <span style="font-size:22px">✅</span> Tôi sẽ tham gia — Bấm để huỷ
+            <span style="font-size:22px">❌</span> Huỷ tham gia
           </button>`
         : `<button onclick="doVote()" style="width:100%;padding:18px;border-radius:16px;
-              background:var(--accent);border:none;color:#080d00;
-              font-family:'Be Vietnam Pro',sans-serif;font-size:16px;font-weight:700;
+              background:rgba(34,197,94,.15);border:2px solid rgba(34,197,94,.45);
+              color:var(--green);font-family:'Be Vietnam Pro',sans-serif;font-size:16px;font-weight:700;
               cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">
-            <span style="font-size:22px">🏸</span> Tôi sẽ tham gia buổi này
+            <span style="font-size:22px">🏸</span> Tôi sẽ tham gia
           </button>`}
     </div>`;
 
@@ -2551,6 +2605,7 @@ async function doClose() {
   const autoMsg = autoDeductResults.deducted > 0
     ? ` · Đã tự trừ quỹ ${autoDeductResults.deducted} người` : '';
   toast(`Đã khóa! ${picked.length} thành viên + ${guests.length} khách${autoMsg}`, 'ok');
+  refreshAllFund();
   renderSession();
   setTimeout(() => openPayment(true), 600);
 }
@@ -3060,6 +3115,20 @@ function updateBalanceDisplay(bal) {
   if (hb) { hb.textContent = text; hb.style.color = color; }
 }
 
+async function refreshTotalFundDisplay() {
+  if (!db) return;
+  const { data: all } = await db.from('profiles').select('fund_balance');
+  const total = (all||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
+  const color = total < 0 ? 'var(--red)' : 'var(--accent2)';
+  const text  = (total < 0 ? '-' : '') + fmt(Math.abs(total));
+  ['sidebar-total-fund','home-total-fund'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = text; el.style.color = color; }
+  });
+  const ftEl = document.getElementById('fund-total-all');
+  if (ftEl) { ftEl.textContent = text; ftEl.style.color = color; }
+}
+
 async function checkAndShowLowFundAlert() {
   if (!me?.id) return;
   const bal = me.fund_balance || 0;
@@ -3096,6 +3165,15 @@ async function loadFundPage() {
   balEl.textContent = (bal < 0 ? '-' : '') + fmt(Math.abs(bal));
   balEl.className   = 'fund-bal' + (bal < 0 ? ' low' : '');
   updateBalanceDisplay(bal);
+
+  // Tổng quỹ chung (tổng fund_balance của tất cả thành viên)
+  const { data: allProfs } = await db.from('profiles').select('fund_balance');
+  const totalFund = (allProfs||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
+  const totalEl = document.getElementById('fund-total-all');
+  if (totalEl) {
+    totalEl.textContent = (totalFund < 0 ? '-' : '') + fmt(Math.abs(totalFund));
+    totalEl.style.color = totalFund < 0 ? 'var(--red)' : 'var(--accent2)';
+  }
 
   // Kiểm tra nợ buổi chưa trả
   const { data: unpaid } = await db.from('payments')
@@ -3417,6 +3495,7 @@ async function adminConfirmTxn(txnId, userId, amount, action) {
   }
   load(false);
   toast(action === 'confirmed' ? '✓ Đã xác nhận & cộng quỹ' : '✕ Đã từ chối', action==='confirmed'?'ok':'');
+  await refreshAllFund();
   loadAdminPage();
 }
 
