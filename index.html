@@ -3344,7 +3344,7 @@ function depContent(txnId) {
   const name = (me.name || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toUpperCase().replace(/[^A-Z ]/g,'').trim();
-  return `${code} ${name} CHUYEN TIEN CAU LONG`;
+  return `${code} ${name} CK CAU LONG`;
 }
 
 function copyDepContent() {
