@@ -423,7 +423,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 ══════════════════════════════ -->
 <div id="desktop-sidebar" style="display:none">
   <div id="sidebar-logo">
-    <div class="logo" style="font-size:22px;white-space:nowrap;padding-bottom:4px">Cầu <span>Lông</span></div>
+    <div class="logo" style="font-size:22px;white-space:nowrap;padding-bottom:4px">Cầu <span>Lông</span> <span style="color:#106B3C">KTH</span></div>
     <div style="color:var(--muted);font-size:12px;margin-top:4px">Xin chào, <span id="sidebar-username" style="color:var(--text);font-weight:600"></span></div>
     <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
       <span style="font-size:10px;color:var(--muted)">Quỹ của tôi:</span>
@@ -471,7 +471,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 ══════════════════════════════ -->
 <div class="page" id="pg-auth">
   <div class="auth-wrap">
-    <div class="logo" style="margin-bottom:6px">Cầu <span>Lông</span></div>
+    <div class="logo" style="margin-bottom:6px">Cầu <span>Lông</span> <span style="color:#106B3C">KTH</span></div>
     <p style="color:var(--muted);font-size:14px;margin-bottom:32px;line-height:1.6">
       Bình chọn &amp; chia tiền đánh cầu<br>
       <strong style="color:var(--accent2)">Không cần đăng ký</strong> — nhập tên &amp; SĐT là xong
@@ -543,7 +543,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 <div class="page" id="pg-home">
   <div class="hdr">
     <div style="flex:1">
-      <div class="logo" style="font-size:22px;padding-bottom:4px">Cầu <span>Lông</span></div>
+      <div class="logo" style="font-size:22px;padding-bottom:4px">Cầu <span>Lông</span> <span style="color:#106B3C">KTH</span></div>
       <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span> 👋
         · Quỹ tôi: <span id="home-balance" style="font-weight:700;color:#a78bfa">—</span>
         · Tổng: <span id="home-total-fund" style="font-weight:700;color:#a78bfa">—</span>
@@ -977,36 +977,36 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <!-- BƯỚC 2: Quét QR -->
     <div id="dep-step-2" style="display:none">
       <!-- Header -->
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
         <button onclick="cancelDepositIfPending();backToDepStep1()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0">←</button>
-        <div style="font-size:16px;font-weight:800">Quét QR chuyển khoản</div>
+        <div style="font-size:17px;font-weight:800">Quét QR chuyển khoản</div>
       </div>
 
       <!-- Số tiền -->
-      <div style="text-align:center;margin-bottom:8px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Số tiền cần chuyển</div>
-        <div id="dep-qr-amount" style="font-size:26px;font-weight:800;color:#a78bfa"></div>
+      <div style="text-align:center;margin-bottom:14px">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Số tiền cần chuyển</div>
+        <div id="dep-qr-amount" style="font-size:28px;font-weight:800;color:#a78bfa"></div>
       </div>
 
       <!-- QR Code -->
-      <div style="background:#fff;border-radius:14px;padding:10px;margin-bottom:8px;text-align:center">
-        <img id="dep-qr-img" src="" alt="QR Code" style="width:100%;max-width:200px;height:auto;border-radius:6px;display:block;margin:0 auto">
+      <div style="background:#fff;border-radius:16px;padding:12px;margin-bottom:14px;text-align:center">
+        <img id="dep-qr-img" src="" alt="QR Code" style="width:100%;max-width:260px;height:auto;border-radius:8px;display:block;margin:0 auto">
       </div>
 
       <!-- Thông tin ngân hàng -->
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:8px">
-        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:600">Thông tin chuyển khoản</div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;font-weight:600">Thông tin chuyển khoản</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
           <span style="font-size:12px;color:var(--muted)">Ngân hàng</span>
-          <span id="dep-bank-name" style="font-size:12px;font-weight:700"></span>
+          <span id="dep-bank-name" style="font-size:13px;font-weight:700"></span>
         </div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
           <span style="font-size:12px;color:var(--muted)">Số tài khoản</span>
-          <span id="dep-account-no" style="font-size:12px;font-weight:700;font-family:monospace"></span>
+          <span id="dep-account-no" style="font-size:13px;font-weight:700;font-family:monospace"></span>
         </div>
-        <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
           <span style="font-size:12px;color:var(--muted)">Chủ tài khoản</span>
-          <span id="dep-account-name" style="font-size:12px;font-weight:700"></span>
+          <span id="dep-account-name" style="font-size:13px;font-weight:700"></span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-size:12px;color:var(--muted)">Nội dung CK</span>
@@ -1019,26 +1019,21 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 
       <!-- Trạng thái chờ -->
       <div id="dep-status-box" style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);
-        border-radius:10px;padding:8px 12px;text-align:center;margin-bottom:8px">
-        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:2px">
-          <div class="spin" style="width:14px;height:14px;border-width:2px"></div>
-          <span style="font-size:12px;font-weight:600;color:#fbbf24">Đang chờ xác nhận tự động...</span>
+        border-radius:12px;padding:12px 14px;text-align:center;margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px">
+          <div class="spin" style="width:16px;height:16px;border-width:2px"></div>
+          <span style="font-size:13px;font-weight:600;color:#fbbf24">Đang chờ xác nhận tự động...</span>
         </div>
-        <div style="font-size:10px;color:var(--muted)">Chuyển khoản xong, app sẽ tự xác nhận trong vài giây</div>
+        <div style="font-size:11px;color:var(--muted)">Chuyển khoản xong, app sẽ tự xác nhận trong vài giây</div>
       </div>
 
       <!-- Buttons -->
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button onclick="cancelDepositIfPending()" style="width:100%;padding:11px;border-radius:12px;
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="cancelDepositIfPending()" style="width:100%;padding:12px;border-radius:12px;
           background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#ef4444;
           font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer;
           display:flex;align-items:center;justify-content:center;gap:8px">
           ✕ Hủy chuyển tiền
-        </button>
-        <button onclick="closeDepositKeepPending()" style="width:100%;padding:11px;border-radius:12px;
-          background:var(--bg3);border:1px solid var(--border);color:var(--muted);
-          font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
-          Đóng (chờ xác nhận sau)
         </button>
       </div>
     </div>
