@@ -1378,20 +1378,20 @@ function doExit() {
 // REALTIME — tất cả trang
 // ═══════════════════════════════════════
 let homeCh = null, fundCh = null, adminCh = null, paymentCh = null;
-let fundPollTimer = null; // 1 timer duy nhất cho fund poll
+let balancePollTimer = null;
+let fundPollTimer = null;
 
 function isActive(pageId) {
   return document.getElementById(pageId)?.classList.contains('active');
 }
 
-// Chỉ fetch profile cá nhân (1 row) — nhẹ hơn nhiều
-// Quỹ tổng chỉ fetch khi cần (triggered by event, không poll liên tục)
+// Poll chỉ fetch 1 row cá nhân — nhẹ; quỹ tổng cache 10s
 let _lastTotalFetch = 0;
 
 async function refreshAllFund() {
   if (!me?.id || !db) return;
 
-  // Luôn fetch số dư cá nhân (1 row, rất nhẹ)
+  // Chỉ fetch 1 row — rất nhẹ
   const { data: p } = await db.from('profiles')
     .select('fund_balance').eq('id', me.id).single();
 
@@ -1405,7 +1405,7 @@ async function refreshAllFund() {
     updateBalanceDisplay(newBal);
   }
 
-  // Fetch quỹ tổng tối đa mỗi 10 giây (không cần nhanh hơn)
+  // Quỹ tổng: fetch tối đa mỗi 10 giây
   const now = Date.now();
   if (now - _lastTotalFetch > 10000) {
     _lastTotalFetch = now;
@@ -1422,20 +1422,18 @@ async function refreshAllFund() {
   }
 }
 
-// Fetch quỹ tổng ngay lập tức (dùng khi có event thay đổi)
+// Reset cache → fetch quỹ tổng ngay (dùng khi có event thực sự)
 async function refreshTotalNow() {
-  _lastTotalFetch = 0; // reset cache để fetch lại ngay
+  _lastTotalFetch = 0;
   await refreshAllFund();
 }
 
-// Giữ alias tương thích code cũ
+// Alias tương thích
 async function refreshBalance() { await refreshAllFund(); }
 
-function startBalancePoll() {
-  // Gộp vào fundPollTimer, không cần timer riêng
-}
+function startBalancePoll() { /* gộp vào fundPollTimer */ }
 
-// Poll duy nhất 3 giây — realtime trigger là fast-path, poll là fallback
+// 1 timer duy nhất 500ms — nhẹ vì chỉ fetch 1 row
 function startFundPoll() {
   if (fundPollTimer) clearInterval(fundPollTimer);
   fundPollTimer = setInterval(refreshAllFund, 500);
@@ -1454,7 +1452,7 @@ function startAllRealtime() {
   if (fundCh) db.removeChannel(fundCh);
   fundCh = db.channel('rt-fund')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async () => {
-      await refreshTotalNow(); // reset cache, fetch ngay
+      await refreshTotalNow();
       if (isActive('pg-fund')) loadFundPage();
     })
     .subscribe();
@@ -1472,8 +1470,7 @@ function startAllRealtime() {
     })
     .subscribe();
 
-  // Poll 8s dự phòng + poll quỹ 4s cho realtime nhanh
-  startBalancePoll();
+  // 1 timer duy nhất 500ms
   startFundPoll();
 
   // ── PAYMENT: payments & guest_payments (session hiện tại) ──
@@ -1515,7 +1512,7 @@ async function loadHome() {
     const { data: sessions } = await db.from('sessions')
       .select('*, profiles!host_id(name)')
       .eq('status','voting')
-      .order('scheduled_at',{ascending:true,nullsFirst:false});
+      .order('created_at',{ascending:false});
 
     if (!sessions?.length) {
       el.innerHTML = '<div class="empty"><div class="empty-icon">🏸</div><div>Chưa có buổi bình chọn nào đang mở.<br>Bấm <strong style="color:var(--accent)">Tạo buổi</strong> để bắt đầu!</div></div>';
@@ -1541,7 +1538,7 @@ async function loadHome() {
     }
     const { data: sessions } = await db.from('sessions')
       .select('*, profiles!host_id(name)')
-      .in('id',ids).order('scheduled_at',{ascending:true,nullsFirst:false});
+      .in('id',ids).order('created_at',{ascending:false});
     if (!sessions?.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div>Chưa có buổi nào</div></div>'; return; }
     const sids2 = sessions.map(s => s.id);
     const [{ data: voteRows2 }, { data: memberRows2 }] = await Promise.all([
