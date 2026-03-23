@@ -1026,11 +1026,19 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         <div style="font-size:11px;color:var(--muted)">Chuyển khoản xong, app sẽ tự xác nhận trong vài giây</div>
       </div>
 
-      <button onclick="closeDepositKeepPending()" style="width:100%;padding:12px;border-radius:12px;
-        background:var(--bg3);border:1px solid var(--border);color:var(--muted);
-        font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
-        Đóng (chờ xác nhận sau)
-      </button>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button onclick="cancelDepositIfPending()" style="width:100%;padding:12px;border-radius:12px;
+          background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);color:#ef4444;
+          font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;gap:8px">
+          ✕ Hủy chuyển tiền
+        </button>
+        <button onclick="closeDepositKeepPending()" style="width:100%;padding:12px;border-radius:12px;
+          background:var(--bg3);border:1px solid var(--border);color:var(--muted);
+          font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
+          Đóng (chờ xác nhận sau)
+        </button>
+      </div>
     </div>
 
   </div>
