@@ -1378,22 +1378,23 @@ function doExit() {
 // REALTIME — tất cả trang
 // ═══════════════════════════════════════
 let homeCh = null, fundCh = null, adminCh = null, paymentCh = null;
-let balancePollTimer = null;
-let fundPollTimer = null;
+let fundPollTimer = null; // 1 timer duy nhất cho fund poll
 
 function isActive(pageId) {
   return document.getElementById(pageId)?.classList.contains('active');
 }
 
-// Fetch song song số dư cá nhân + quỹ tổng, cập nhật toàn bộ UI ngay
+// Chỉ fetch profile cá nhân (1 row) — nhẹ hơn nhiều
+// Quỹ tổng chỉ fetch khi cần (triggered by event, không poll liên tục)
+let _lastTotalFetch = 0;
+
 async function refreshAllFund() {
   if (!me?.id || !db) return;
-  const [{ data: p }, { data: allProfs }] = await Promise.all([
-    db.from('profiles').select('fund_balance').eq('id', me.id).single(),
-    db.from('profiles').select('fund_balance')
-  ]);
 
-  // Cập nhật quỹ cá nhân
+  // Luôn fetch số dư cá nhân (1 row, rất nhẹ)
+  const { data: p } = await db.from('profiles')
+    .select('fund_balance').eq('id', me.id).single();
+
   if (p) {
     const newBal = p.fund_balance ?? 0;
     if (newBal !== me.fund_balance) {
@@ -1404,30 +1405,40 @@ async function refreshAllFund() {
     updateBalanceDisplay(newBal);
   }
 
-  // Cập nhật quỹ tổng (sidebar + home + fund page)
-  if (allProfs) {
-    const total = allProfs.reduce((s, x) => s + (x.fund_balance || 0), 0);
-    const color = total < 0 ? 'var(--red)' : 'var(--accent2)';
-    const text  = (total < 0 ? '-' : '') + fmt(Math.abs(total));
-    ['sidebar-total-fund', 'home-total-fund', 'fund-total-all'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) { el.textContent = text; el.style.color = color; }
-    });
+  // Fetch quỹ tổng tối đa mỗi 10 giây (không cần nhanh hơn)
+  const now = Date.now();
+  if (now - _lastTotalFetch > 10000) {
+    _lastTotalFetch = now;
+    const { data: allProfs } = await db.from('profiles').select('fund_balance');
+    if (allProfs) {
+      const total = allProfs.reduce((s, x) => s + (x.fund_balance || 0), 0);
+      const color = total < 0 ? 'var(--red)' : 'var(--accent2)';
+      const text  = (total < 0 ? '-' : '') + fmt(Math.abs(total));
+      ['sidebar-total-fund', 'home-total-fund', 'fund-total-all'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = text; el.style.color = color; }
+      });
+    }
   }
+}
+
+// Fetch quỹ tổng ngay lập tức (dùng khi có event thay đổi)
+async function refreshTotalNow() {
+  _lastTotalFetch = 0; // reset cache để fetch lại ngay
+  await refreshAllFund();
 }
 
 // Giữ alias tương thích code cũ
 async function refreshBalance() { await refreshAllFund(); }
 
 function startBalancePoll() {
-  if (balancePollTimer) clearInterval(balancePollTimer);
-  balancePollTimer = setInterval(refreshAllFund, 100);
+  // Gộp vào fundPollTimer, không cần timer riêng
 }
 
-// Poll riêng 4 giây — đảm bảo realtime dù Supabase lag
+// Poll duy nhất 3 giây — realtime trigger là fast-path, poll là fallback
 function startFundPoll() {
   if (fundPollTimer) clearInterval(fundPollTimer);
-  fundPollTimer = setInterval(refreshAllFund, 100);
+  fundPollTimer = setInterval(refreshAllFund, 500);
 }
 
 function startAllRealtime() {
@@ -1443,7 +1454,7 @@ function startAllRealtime() {
   if (fundCh) db.removeChannel(fundCh);
   fundCh = db.channel('rt-fund')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async () => {
-      await refreshAllFund();
+      await refreshTotalNow(); // reset cache, fetch ngay
       if (isActive('pg-fund')) loadFundPage();
     })
     .subscribe();
@@ -1452,11 +1463,11 @@ function startAllRealtime() {
   if (adminCh) db.removeChannel(adminCh);
   adminCh = db.channel('rt-admin')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async () => {
-      await refreshAllFund();
+      await refreshTotalNow();
       if (isActive('pg-admin')) loadAdminPage();
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
-      await refreshAllFund();
+      await refreshTotalNow();
       if (isActive('pg-admin')) loadAdminPage();
     })
     .subscribe();
@@ -1504,7 +1515,7 @@ async function loadHome() {
     const { data: sessions } = await db.from('sessions')
       .select('*, profiles!host_id(name)')
       .eq('status','voting')
-      .order('created_at',{ascending:false});
+      .order('scheduled_at',{ascending:true,nullsFirst:false});
 
     if (!sessions?.length) {
       el.innerHTML = '<div class="empty"><div class="empty-icon">🏸</div><div>Chưa có buổi bình chọn nào đang mở.<br>Bấm <strong style="color:var(--accent)">Tạo buổi</strong> để bắt đầu!</div></div>';
@@ -1530,7 +1541,7 @@ async function loadHome() {
     }
     const { data: sessions } = await db.from('sessions')
       .select('*, profiles!host_id(name)')
-      .in('id',ids).order('created_at',{ascending:false});
+      .in('id',ids).order('scheduled_at',{ascending:true,nullsFirst:false});
     if (!sessions?.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div>Chưa có buổi nào</div></div>'; return; }
     const sids2 = sessions.map(s => s.id);
     const [{ data: voteRows2 }, { data: memberRows2 }] = await Promise.all([
@@ -2605,7 +2616,7 @@ async function doClose() {
   const autoMsg = autoDeductResults.deducted > 0
     ? ` · Đã tự trừ quỹ ${autoDeductResults.deducted} người` : '';
   toast(`Đã khóa! ${picked.length} thành viên + ${guests.length} khách${autoMsg}`, 'ok');
-  refreshAllFund();
+  refreshTotalNow();
   renderSession();
   setTimeout(() => openPayment(true), 600);
 }
@@ -3495,7 +3506,7 @@ async function adminConfirmTxn(txnId, userId, amount, action) {
   }
   load(false);
   toast(action === 'confirmed' ? '✓ Đã xác nhận & cộng quỹ' : '✕ Đã từ chối', action==='confirmed'?'ok':'');
-  await refreshAllFund();
+  await refreshTotalNow();
   loadAdminPage();
 }
 
