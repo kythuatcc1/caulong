@@ -559,11 +559,6 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </div>
     <div id="home-list"></div>
   </div>
-  <div class="bnav">
-    <button class="ni active" id="nav-home" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
-    <button class="ni" id="nav-fund" onclick="goPage('pg-fund')"><span class="ni-icon">🏦</span>Quỹ</button>
-    <button class="ni" id="nav-create" onclick="goPage('pg-create')"><span class="ni-icon">➕</span>Tạo buổi</button>
-  </div>
 </div>
 
 <!-- ══════════════════════════════
@@ -905,10 +900,6 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="sec" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0 4px;margin-top:-8px"><div class="sec-t">Lịch sử giao dịch</div></div>
     <div id="fund-txn-list"></div>
   </div>
-  <div class="bnav">
-    <button class="ni" id="nav-home2" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
-    <button class="ni active" id="nav-fund2"><span class="ni-icon">🏦</span>Quỹ</button>
-    <button class="ni" id="nav-create2" onclick="goPage('pg-create')"><span class="ni-icon">➕</span>Tạo buổi</button>
   </div>
 </div>
 
@@ -1173,7 +1164,10 @@ function init() {
   if (!db) db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
   const saved = localStorage.getItem('cvUser') || sessionStorage.getItem('cvUser');
-  if (!saved) { goPageDirect('pg-auth'); return; }
+  if (!saved) {
+    document.getElementById('global-bnav').style.display = 'none';
+    goPageDirect('pg-auth'); return;
+  }
 
   const parsed = JSON.parse(saved);
   const isPersisted = !!localStorage.getItem('cvUser');
@@ -1263,6 +1257,9 @@ function showNewLogin() {
 function goPageDirect(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  const noNav = ['pg-auth','pg-splash'].includes(id);
+  const gbnav = document.getElementById('global-bnav');
+  if (gbnav) gbnav.style.display = noNav ? 'none' : '';
   if (isDesktop()) initDesktopLayout();
 }
 
@@ -1280,10 +1277,16 @@ function goPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
-  // Mobile bottom nav highlight
+  // Global bottom nav: ẩn trên auth/splash, hiện trên các trang khác
+  const noNav = ['pg-auth','pg-splash'].includes(id);
+  const gbnav = document.getElementById('global-bnav');
+  if (gbnav) gbnav.style.display = noNav ? 'none' : '';
+  // Highlight đúng nút
   const navMap = { 'pg-home':'home', 'pg-create':'create', 'pg-fund':'fund', 'pg-admin':'fund' };
   const active = navMap[id] || '';
   ['home','fund','create'].forEach(n => {
+    document.getElementById('gnav-'+n)?.classList.toggle('active', active===n);
+    // legacy ids còn trong DOM (nếu có)
     document.getElementById('nav-'+n)?.classList.toggle('active', active===n);
     document.getElementById('nav-'+n+'2')?.classList.toggle('active', active===n);
     document.getElementById('snav-'+n)?.classList.toggle('active', active===n);
@@ -3836,5 +3839,12 @@ if (document.readyState === 'loading') {
   init();
 }
 </script>
+<!-- GLOBAL BOTTOM NAV -->
+<div class="bnav" id="global-bnav">
+  <button class="ni" id="gnav-home" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
+  <button class="ni" id="gnav-fund" onclick="goPage('pg-fund')"><span class="ni-icon">🏦</span>Quỹ</button>
+  <button class="ni" id="gnav-create" onclick="goPage('pg-create')"><span class="ni-icon">➕</span>Tạo buổi</button>
+</div>
+
 </body>
 </html>
