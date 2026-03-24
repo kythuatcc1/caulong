@@ -553,7 +553,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
   </div>
   <div class="content">
     <!-- Tabs: Đang mở / Của tôi -->
-    <div class="tabs" style="margin-bottom:16px">
+    <div class="tabs" style="margin-bottom:16px;position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0 4px;margin-top:-8px">
       <button class="tab active" id="tab-open" onclick="switchHomeTab('open')">🏸 Đang mở</button>
       <button class="tab" id="tab-mine" onclick="switchHomeTab('mine')">📋 Của tôi</button>
     </div>
@@ -902,7 +902,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div id="fund-debt-list" style="display:none"></div>
 
     <!-- Lịch sử giao dịch của tôi -->
-    <div class="sec"><div class="sec-t">Lịch sử giao dịch</div></div>
+    <div class="sec" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0 4px;margin-top:-8px"><div class="sec-t">Lịch sử giao dịch</div></div>
     <div id="fund-txn-list"></div>
   </div>
   <div class="bnav">
@@ -1526,7 +1526,10 @@ function switchHomeTab(tab) {
 async function loadHome() {
   if (!me || !db) return;
   const el = document.getElementById('home-list');
-  el.innerHTML = '<div class="empty"><div class="spin" style="margin:0 auto 12px"></div></div>';
+  // Hiển thị cache ngay nếu có, không chờ spinner
+  if (!el.innerHTML || el.innerHTML.includes('spin')) {
+    el.innerHTML = '<div class="empty"><div class="spin" style="margin:0 auto 12px"></div></div>';
+  }
 
   if (homeTab === 'open') {
     // Tất cả buổi đang voting — thành viên thấy ngay không cần nhập mã
@@ -3788,6 +3791,43 @@ if ('serviceWorker' in navigator) {
       .catch(err => console.warn('SW:', err));
   });
 }
+
+// ── Swipe back (vuốt phải từ cạnh trái để back) ──
+(function() {
+  const EDGE = 40; // vùng cạnh trái kích hoạt (px)
+  const MIN_DIST = 80; // khoảng vuốt tối thiểu
+  const MAX_VERT = 80; // lệch dọc tối đa
+  let startX = 0, startY = 0, tracking = false;
+
+  const backMap = {
+    'pg-session': () => goPage('pg-home'),
+    'pg-payment': () => { stopPaymentRealtime(); goPage('pg-session'); },
+    'pg-admin':   () => goPage('pg-fund'),
+    'pg-create':  () => goPage('pg-home'),
+  };
+
+  document.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    tracking = t.clientX <= EDGE;
+    startX = t.clientX;
+    startY = t.clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!tracking) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = Math.abs(t.clientY - startY);
+    if (dx >= MIN_DIST && dy <= MAX_VERT) {
+      const activePage = document.querySelector('.page.active');
+      if (activePage) {
+        const fn = backMap[activePage.id];
+        if (fn) fn();
+      }
+    }
+    tracking = false;
+  }, { passive: true });
+})();
 
 // Gọi init sau khi DOM và defer scripts sẵn sàng
 if (document.readyState === 'loading') {
