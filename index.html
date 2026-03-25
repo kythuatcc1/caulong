@@ -1945,14 +1945,15 @@ function renderSession() {
     : '';
 
   // ── TAB: Đã xác nhận / Chưa xác nhận ──
+  const guests = curSession.guests || [];
+  const totalConfirmed = confirmedCount + guests.length;
   document.getElementById('voted-hint').textContent =
-    `${confirmedCount}/${members.length} người đã xác nhận tham gia`;
+    `${totalConfirmed}/${members.length + guests.length} người đã xác nhận tham gia`;
 
   const confirmed = members.filter(m => confirmedIds.has(m.user_id));
   const pending   = members.filter(m => !confirmedIds.has(m.user_id));
 
-  document.getElementById('voted-list').innerHTML = confirmed.length
-    ? confirmed.map(m => `
+  const memberRows2 = confirmed.map(m => `
         <div class="wrow done">
           <div class="av" style="background:${ac(m.user_id)};width:38px;height:38px;font-size:13px">${initials(m.profiles?.name||'?')}</div>
           <div style="flex:1">
@@ -1963,8 +1964,24 @@ function renderSession() {
             <div style="font-size:11px;color:var(--green);margin-top:2px">✓ Xác nhận tham gia</div>
           </div>
           <span style="font-size:20px">✅</span>
-        </div>`).join('')
-    : '<div class="empty" style="padding:24px 20px"><div style="font-size:13px">Chưa có ai xác nhận</div></div>';
+        </div>`).join('');
+
+  const guestRows2 = guests.map(g => `
+        <div class="wrow done" style="border-color:rgba(255,107,71,.25);background:rgba(255,107,71,.04)">
+          <div class="av" style="background:rgba(255,107,71,.25);width:38px;height:38px;font-size:13px">${initials(g.name||'?')}</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px">
+              ${g.name||'Khách'}
+              <span style="background:rgba(255,107,71,.15);color:var(--accent3);font-size:9px;padding:2px 7px;border-radius:8px;font-weight:700">Vãng lai</span>
+            </div>
+            <div style="font-size:11px;color:var(--green);margin-top:2px">✓ Xác nhận tham gia</div>
+          </div>
+          <span style="font-size:20px">✅</span>
+        </div>`).join('');
+
+  const allConfirmedHtml = memberRows2 + guestRows2;
+  document.getElementById('voted-list').innerHTML = allConfirmedHtml
+    || '<div class="empty" style="padding:24px 20px"><div style="font-size:13px">Chưa có ai xác nhận</div></div>';
 
   document.getElementById('not-voted-section').style.display = pending.length ? '' : 'none';
   document.getElementById('not-voted-list').innerHTML = pending.map(m => `
