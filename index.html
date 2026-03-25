@@ -1899,7 +1899,7 @@ function renderSession() {
     const isMe   = uid === me.id;
 
     // Nút toggle vote cho admin (không phải chính mình, buổi chưa khoá)
-    const hostControls = me.is_admin && !isClosed && !isMe ? `
+    const hostControls = me.is_admin && !isLocked && !isMe ? `
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
         <button onclick="adminToggleVote('${uid}')"
           style="padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;
@@ -1931,7 +1931,7 @@ function renderSession() {
   }).join('') || '<div class="empty"><div class="empty-icon">👥</div><div>Chưa có thành viên nào</div></div>';
 
   // Nút thêm thành viên (admin only, buổi đang mở)
-  const addMemberBtn = me.is_admin && !isClosed ? `
+  const addMemberBtn = me.is_admin && !isLocked ? `
     <button onclick="openAddMemberSheet()"
       style="margin-top:8px;width:100%;padding:11px;border-radius:12px;
       background:rgba(71,212,255,.08);border:1px dashed rgba(71,212,255,.3);
