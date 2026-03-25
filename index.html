@@ -1555,13 +1555,32 @@ async function loadHome() {
   }
 
   if (homeTab === 'open') {
-    // Tất cả buổi đang voting — thành viên thấy ngay không cần nhập mã
-    const { data: sessions } = await db.from('sessions')
-      .select('*, profiles!host_id(name)')
-      .eq('status','voting')
-      .order('created_at',{ascending:false});
+    // Lấy: (1) tất cả buổi đang voting + (2) buổi đã khóa mà mình đã vote
+    const [{ data: votingSessions }, { data: myVotedIds }] = await Promise.all([
+      db.from('sessions').select('*, profiles!host_id(name)')
+        .eq('status','voting').order('created_at',{ascending:false}),
+      db.from('votes').select('session_id')
+        .eq('voter_id', me.id).eq('target_id', me.id)
+    ]);
 
-    if (!sessions?.length) {
+    // Session IDs mà mình đã vote
+    const myVotedSessionIds = (myVotedIds||[]).map(v => v.session_id);
+
+    // Lấy các buổi đã khóa (vote_closed) mà mình đã vote (nếu có)
+    let lockedVotedSessions = [];
+    if (myVotedSessionIds.length) {
+      const { data: lv } = await db.from('sessions')
+        .select('*, profiles!host_id(name)')
+        .in('status', ['vote_closed'])
+        .in('id', myVotedSessionIds)
+        .order('created_at',{ascending:false});
+      lockedVotedSessions = lv || [];
+    }
+
+    // Gộp: buổi voting trước, buổi đã khóa sau
+    const sessions = [...(votingSessions||[]), ...lockedVotedSessions];
+
+    if (!sessions.length) {
       el.innerHTML = '<div class="empty"><div class="empty-icon">🏸</div><div>Chưa có buổi bình chọn nào đang mở.<br>Bấm <strong style="color:var(--accent)">Tạo buổi</strong> để bắt đầu!</div></div>';
       return;
     }
