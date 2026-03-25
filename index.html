@@ -900,7 +900,6 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="sec" style="position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0 4px;margin-top:-8px"><div class="sec-t">Lịch sử giao dịch</div></div>
     <div id="fund-txn-list"></div>
   </div>
-  </div>
 </div>
 
 <!-- ══════════════════════════════
@@ -1130,6 +1129,28 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </div>
     <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">
       Vui lòng đính kèm hóa đơn trước khi xác nhận
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     SHEET: GÁN KHÁCH CHO THÀNH VIÊN
+══════════════════════════════ -->
+<div class="sheet-bg" id="assign-guest-sheet-bg" onclick="closeAssignGuestSheet(event)">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:80vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div style="padding:0 20px 24px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">Gán cho thành viên</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px">
+        Khách: <span id="assign-guest-name" style="color:var(--accent3);font-weight:600"></span>
+        · <span id="assign-guest-amount" style="color:var(--text);font-weight:600"></span>
+      </div>
+      <div id="assign-member-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button onclick="closeAssignGuestSheet()" style="width:100%;margin-top:16px;padding:13px;border-radius:14px;
+        background:var(--bg3);border:1px solid var(--border);color:var(--muted);
+        font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;cursor:pointer">
+        Huỷ
+      </button>
     </div>
   </div>
 </div>
@@ -2704,7 +2725,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
   load(true);
   const [{ data: payments }, { data: guestPayments }] = await Promise.all([
     db.from('payments').select('*, profiles!user_id(id,name)').eq('session_id', session.id),
-    db.from('guest_payments').select('*, session_guests(id,name)').eq('session_id', session.id)
+    db.from('guest_payments').select('*, session_guests(id,name), profiles!assigned_to_user_id(id,name)').eq('session_id', session.id)
   ]);
   load(false);
 
@@ -2826,6 +2847,21 @@ async function openPayment(promptUpload = false, navigateTo = true) {
             </div>`).join('')}
         </div>` : '';
 
+    // Khách được gán cho thành viên này
+    const assignedGuests = (guestPayments||[]).filter(gp => gp.assigned_to_user_id === p.user_id);
+    const assignedGuestsHtml = assignedGuests.length ? `
+      <div style="margin-top:8px;padding:8px 10px;background:rgba(255,107,71,.06);border:1px solid rgba(255,107,71,.15);border-radius:10px">
+        ${assignedGuests.map(gp => `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${assignedGuests.indexOf(gp)<assignedGuests.length-1?'5px':'0'}">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:13px">👤</span>
+              <span style="font-size:12px;color:var(--accent3);font-weight:600">${gp.session_guests?.name||'Khách'}</span>
+              <span style="font-size:10px;color:var(--muted)">(bảo lãnh)</span>
+            </div>
+            <span style="font-size:12px;font-weight:700;color:var(--accent3)">${fmt(gp.amount)}</span>
+          </div>`).join('')}
+      </div>` : '';
+
     // Trạng thái
     const pendingConfirm = !p.is_paid && p.receipt_url && p.paid_method === 'transfer';
     const badgeHtml = p.is_paid
@@ -2881,6 +2917,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
             </div>
             <div style="color:var(--accent2);font-size:14px;font-weight:700;margin-top:2px">${fmt(p.amount)}</div>
             ${bdHtml}
+            ${assignedGuestsHtml}
             ${receiptThumb}
             ${p.paid_at ? `<div style="color:var(--muted);font-size:11px;margin-top:4px">
               Gửi lúc ${new Date(p.paid_at).toLocaleString('vi-VN')}</div>` : ''}
@@ -2909,12 +2946,31 @@ async function openPayment(promptUpload = false, navigateTo = true) {
               </div>`).join('')}
           </div>` : '';
 
-      const badgeHtml = gp.is_paid
+      const statusBadge = gp.is_paid
         ? `<span class="badge bp">✓ Đã thu</span>`
         : `<span class="badge" style="background:rgba(255,107,71,.15);color:var(--accent3)">Chưa thu</span>`;
 
+      // Thông tin thành viên được gán
+      const assignedMember = gp.profiles; // joined via assigned_to_user_id
+      const assignedHtml = assignedMember
+        ? `<div style="display:flex;align-items:center;gap:5px;margin-top:6px;
+              padding:5px 8px;background:rgba(71,212,255,.07);border:1px solid rgba(71,212,255,.2);border-radius:8px">
+            <span style="font-size:11px">👤</span>
+            <span style="font-size:11px;color:var(--accent2);font-weight:600">${assignedMember.name}</span>
+            <span style="font-size:10px;color:var(--muted)">phụ trách thu</span>
+            <button onclick="unassignGuest('${gp.id}')"
+              style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:10px;
+              cursor:pointer;padding:0 2px;line-height:1">✕</button>
+          </div>`
+        : `<button onclick="openAssignGuestSheet('${gp.id}','${gname.replace(/'/g,"\\'")}',${gp.amount})"
+              style="margin-top:6px;width:100%;padding:6px 10px;border-radius:8px;
+              background:rgba(71,212,255,.07);border:1px solid rgba(71,212,255,.2);color:var(--accent2);
+              font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:600;cursor:pointer;text-align:left">
+              👤 Gán cho thành viên bảo lãnh
+          </button>`;
+
       return `
-        <div class="card guest-pay-row" style="cursor:default">
+        <div class="card guest-pay-row" style="cursor:default;${gp.assigned_to_user_id ? 'border-color:rgba(71,212,255,.2)' : ''}">
           <div style="display:flex;align-items:flex-start;gap:10px">
             <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,107,71,.2);
               display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;
@@ -2926,10 +2982,11 @@ async function openPayment(promptUpload = false, navigateTo = true) {
               </div>
               <div style="color:var(--accent3);font-size:14px;font-weight:700;margin-top:2px">${fmt(gp.amount)}</div>
               ${bdHtml}
+              ${assignedHtml}
               ${gp.paid_at ? `<div style="color:var(--muted);font-size:11px;margin-top:4px">Thu lúc ${new Date(gp.paid_at).toLocaleString('vi-VN')}</div>` : ''}
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
-              ${badgeHtml}
+              ${statusBadge}
               ${gp.is_paid
                 ? `<button onclick="toggleGuestPaid('${gp.id}',true)"
                     style="background:none;border:1px solid rgba(239,68,68,.25);color:var(--red);border-radius:8px;
@@ -2964,6 +3021,149 @@ async function toggleGuestPaid(gpid, currentlyPaid) {
     await db.from('guest_payments').update({ is_paid: true, paid_at: new Date().toISOString() }).eq('id', gpid);
     toast('✓ Đã thu tiền khách', 'ok');
   }
+  openPayment(false, false);
+}
+
+// ── Gán khách vãng lai cho thành viên bảo lãnh ──
+let _assignGuestId = null;
+
+function openAssignGuestSheet(gpid, gname, amount) {
+  _assignGuestId = gpid;
+  document.getElementById('assign-guest-name').textContent = gname;
+  document.getElementById('assign-guest-amount').textContent = fmt(amount);
+
+  // Build danh sách thành viên từ payments hiện tại
+  const { session } = curSession;
+  db.from('payments').select('user_id, profiles!user_id(id,name)').eq('session_id', session.id)
+    .then(({ data }) => {
+      const list = document.getElementById('assign-member-list');
+      list.innerHTML = (data||[]).map(p => {
+        const name = p.profiles?.name || '?';
+        const uid  = p.user_id;
+        return `
+          <button onclick="assignGuestToMember('${gpid}','${uid}')"
+            style="display:flex;align-items:center;gap:12px;width:100%;
+            padding:12px 14px;border-radius:14px;background:var(--card);
+            border:1px solid var(--border);cursor:pointer;text-align:left;transition:all .15s"
+            onmouseover="this.style.borderColor='rgba(71,212,255,.4)'"
+            onmouseout="this.style.borderColor='var(--border)'">
+            <div class="av" style="background:${ac(uid)};width:36px;height:36px;font-size:12px;flex-shrink:0">${initials(name)}</div>
+            <span style="font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:600;color:var(--text)">${name}</span>
+          </button>`;
+      }).join('');
+    });
+
+  document.getElementById('assign-guest-sheet-bg').classList.add('show');
+}
+
+function closeAssignGuestSheet(e) {
+  if (!e || e.target === document.getElementById('assign-guest-sheet-bg')) {
+    document.getElementById('assign-guest-sheet-bg').classList.remove('show');
+    _assignGuestId = null;
+  }
+}
+
+async function assignGuestToMember(gpid, userId) {
+  document.getElementById('assign-guest-sheet-bg').classList.remove('show');
+  load(true);
+
+  // Lấy thông tin khách + tên thành viên để ghi log
+  const [{ data: gp }, { data: assignedProfile }] = await Promise.all([
+    db.from('guest_payments').select('amount, session_guests(name)').eq('id', gpid).single(),
+    db.from('profiles').select('fund_balance, name').eq('id', userId).single()
+  ]);
+  if (!gp) { load(false); return toast('Không tìm thấy thông tin khách', 'err'); }
+
+  const guestAmount = gp.amount || 0;
+  const guestName   = gp.session_guests?.name || 'Khách';
+  const oldBal      = assignedProfile?.fund_balance || 0;
+  const newBal      = oldBal - guestAmount;
+
+  // Gán + đánh dấu đã thu
+  await db.from('guest_payments').update({
+    assigned_to_user_id: userId,
+    is_paid: true,
+    paid_at: new Date().toISOString()
+  }).eq('id', gpid);
+
+  // Trừ quỹ cá nhân thành viên được gán
+  await db.from('profiles').update({ fund_balance: newBal }).eq('id', userId);
+
+  // Ghi fund_transaction
+  await db.from('fund_transactions').insert({
+    user_id:      userId,
+    amount:       -guestAmount,
+    type:         'deduction',
+    description:  `Bảo lãnh khách "${guestName}": ${curSession?.session?.title || ''}`,
+    session_id:   curSession?.session?.id || null,
+    status:       'confirmed',
+    confirmed_by: me.id,
+    confirmed_at: new Date().toISOString()
+  });
+
+  // Cập nhật hiển thị nếu chính là bản thân đang đăng nhập
+  if (userId === me.id) {
+    me.fund_balance = newBal;
+    updateBalanceDisplay(newBal);
+    localStorage.setItem('cvUser', JSON.stringify(me));
+  }
+
+  load(false);
+  const memberName = assignedProfile?.name || 'Thành viên';
+  toast(`✓ Đã gán khách & trừ ${fmt(guestAmount)} quỹ của ${memberName}`, 'ok');
+  openPayment(false, false);
+}
+
+async function unassignGuest(gpid) {
+  load(true);
+
+  // Lấy thông tin trước khi bỏ gán để hoàn quỹ
+  const { data: gp } = await db.from('guest_payments')
+    .select('amount, assigned_to_user_id, session_guests(name)')
+    .eq('id', gpid).single();
+
+  if (gp?.assigned_to_user_id) {
+    const userId    = gp.assigned_to_user_id;
+    const guestAmt  = gp.amount || 0;
+    const guestName = gp.session_guests?.name || 'Khách';
+
+    // Lấy số dư hiện tại để hoàn lại
+    const { data: profile } = await db.from('profiles').select('fund_balance').eq('id', userId).single();
+    const oldBal = profile?.fund_balance ?? 0;
+    const newBal = oldBal + guestAmt;
+
+    // Hoàn quỹ
+    await db.from('profiles').update({ fund_balance: newBal }).eq('id', userId);
+
+    // Ghi fund_transaction hoàn quỹ
+    await db.from('fund_transactions').insert({
+      user_id:      userId,
+      amount:       guestAmt,
+      type:         'refund',
+      description:  `Hoàn quỹ bảo lãnh "${guestName}": ${curSession?.session?.title || ''}`,
+      session_id:   curSession?.session?.id || null,
+      status:       'confirmed',
+      confirmed_by: me.id,
+      confirmed_at: new Date().toISOString()
+    });
+
+    // Cập nhật hiển thị nếu chính là bản thân
+    if (userId === me.id) {
+      me.fund_balance = newBal;
+      updateBalanceDisplay(newBal);
+      localStorage.setItem('cvUser', JSON.stringify(me));
+    }
+  }
+
+  // Bỏ gán + đặt lại trạng thái chưa thu
+  await db.from('guest_payments').update({
+    assigned_to_user_id: null,
+    is_paid: false,
+    paid_at: null
+  }).eq('id', gpid);
+
+  load(false);
+  toast('Đã bỏ gán khách & hoàn quỹ thành viên');
   openPayment(false, false);
 }
 
