@@ -1571,10 +1571,13 @@ async function loadHome() {
       db.from('votes').select('session_id,voter_id,target_id').in('session_id', sids),
       db.from('session_members').select('session_id').in('session_id', sids)
     ]);
-    const confirmedMap = {}, memberMap = {};
-    (voteRows||[]).forEach(v => { if (v.voter_id === v.target_id) confirmedMap[v.session_id] = (confirmedMap[v.session_id]||0)+1; });
+    const confirmedMap = {}, memberMap = {}, iVotedMap = {};
+    (voteRows||[]).forEach(v => {
+      if (v.voter_id === v.target_id) confirmedMap[v.session_id] = (confirmedMap[v.session_id]||0)+1;
+      if (v.voter_id === me.id && v.target_id === me.id) iVotedMap[v.session_id] = true;
+    });
     (memberRows||[]).forEach(m => { memberMap[m.session_id] = (memberMap[m.session_id]||0)+1; });
-    el.innerHTML = sessions.map(s => renderSessionCard(s, confirmedMap[s.id]||0, memberMap[s.id]||0)).join('');
+    el.innerHTML = sessions.map(s => renderSessionCard(s, confirmedMap[s.id]||0, memberMap[s.id]||0, iVotedMap[s.id]||false)).join('');
 
   } else {
     // Buổi của tôi (đã join hoặc host)
@@ -1593,27 +1596,91 @@ async function loadHome() {
       db.from('votes').select('session_id,voter_id,target_id').in('session_id', sids2),
       db.from('session_members').select('session_id').in('session_id', sids2)
     ]);
-    const confirmedMap2 = {}, memberMap2 = {};
-    (voteRows2||[]).forEach(v => { if (v.voter_id === v.target_id) confirmedMap2[v.session_id] = (confirmedMap2[v.session_id]||0)+1; });
+    const confirmedMap2 = {}, memberMap2 = {}, iVotedMap2 = {};
+    (voteRows2||[]).forEach(v => {
+      if (v.voter_id === v.target_id) confirmedMap2[v.session_id] = (confirmedMap2[v.session_id]||0)+1;
+      if (v.voter_id === me.id && v.target_id === me.id) iVotedMap2[v.session_id] = true;
+    });
     (memberRows2||[]).forEach(m => { memberMap2[m.session_id] = (memberMap2[m.session_id]||0)+1; });
-    el.innerHTML = sessions.map(s => renderSessionCard(s, confirmedMap2[s.id]||0, memberMap2[s.id]||0)).join('');
+    el.innerHTML = sessions.map(s => renderSessionCard(s, confirmedMap2[s.id]||0, memberMap2[s.id]||0, iVotedMap2[s.id]||false)).join('');
   }
 }
 
-function renderSessionCard(s, confirmedCount=0, totalCount=0) {
-  const countBadge = `<span style="background:rgba(200,255,71,.12);color:var(--accent);font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap">👥 ${confirmedCount}/${s.max_players||totalCount}</span>`;
+function renderSessionCard(s, confirmedCount=0, totalCount=0, iVoted=false) {
+  // Parse date/time
+  let dayName='', dayNum='', monthStr='', timeStr='';
+  if (s.scheduled_at) {
+    const d = new Date(s.scheduled_at);
+    const days = ['CN','Th 2','Th 3','Th 4','Th 5','Th 6','Th 7'];
+    dayName  = days[d.getDay()];
+    dayNum   = String(d.getDate()).padStart(2,'0');
+    monthStr = 'Thg ' + (d.getMonth()+1);
+    timeStr  = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+
+  // Badge status
+  const isVoting    = s.status === 'voting';
+  const isCancelled = s.status === 'cancelled';
+  let badgeBg, badgeColor, badgeText;
+  if (iVoted && isVoting) {
+    badgeBg='rgba(167,139,250,.15)'; badgeColor='#a78bfa'; badgeText='✓ Đã vote';
+  } else if (isVoting) {
+    badgeBg='rgba(200,255,71,.12)'; badgeColor='var(--accent)'; badgeText='Đang mở';
+  } else if (isCancelled) {
+    badgeBg='rgba(239,68,68,.12)'; badgeColor='var(--red)'; badgeText='Đã huỷ';
+  } else {
+    badgeBg='rgba(107,114,128,.15)'; badgeColor='var(--muted)'; badgeText='Đã khóa';
+  }
+
+  // Slot bar
+  const maxP      = s.max_players || totalCount || 1;
+  const pct       = Math.min(100, Math.round(confirmedCount / maxP * 100));
+  const remaining = maxP - confirmedCount;
+  const slotColor    = pct>=90 ? '#ef4444' : pct>=65 ? '#f59e0b' : '#a78bfa';
+  const slotNumColor = pct>=90 ? '#ef4444' : pct>=65 ? '#f59e0b' : 'var(--text)';
+  const remainText   = isVoting ? 'còn ' + remaining + ' chỗ' : '';
+  const votedBorder  = iVoted && isVoting ? 'border-left:3px solid #a78bfa;padding-left:13px;' : '';
+
+  // Màu cột ngày theo trạng thái
+  const colBg    = iVoted && isVoting ? 'rgba(167,139,250,.1)'  : isVoting ? 'rgba(200,255,71,.07)'  : 'rgba(107,114,128,.08)';
+  const colBdr   = iVoted && isVoting ? 'rgba(167,139,250,.35)' : isVoting ? 'rgba(200,255,71,.2)'   : 'rgba(107,114,128,.2)';
+  const dayColor = iVoted && isVoting ? '#c4b5fd'               : isVoting ? 'var(--accent)'         : 'var(--muted)';
+  const numColor = iVoted && isVoting ? '#ede9fe'               : isVoting ? '#ffffff'                : 'var(--muted)';
+  const timeBg   = iVoted && isVoting ? 'rgba(167,139,250,.2)'  : isVoting ? 'rgba(200,255,71,.15)'  : 'rgba(107,114,128,.15)';
+  const timeColor= iVoted && isVoting ? '#c4b5fd'               : isVoting ? 'var(--accent)'         : 'var(--muted)';
+
+  const dateCol = s.scheduled_at ? `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+      min-width:66px;padding:14px 10px;gap:2px;
+      background:${colBg};border-right:1px solid ${colBdr};flex-shrink:0">
+      <span style="font-size:11px;font-weight:700;color:${dayColor};text-transform:uppercase;letter-spacing:.8px">${dayName}</span>
+      <span style="font-size:34px;font-weight:700;color:${numColor};line-height:1">${dayNum}</span>
+      <span style="font-size:10px;color:${dayColor};opacity:.8">${monthStr}</span>
+      <div style="margin-top:8px;background:${timeBg};border-radius:8px;padding:4px 8px;
+        font-size:13px;font-weight:700;color:${timeColor};white-space:nowrap">${timeStr}</div>
+    </div>` : '';
+
   return `
-    <div class="card" onclick="openSession('${s.id}')">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div class="card-title" style="flex:1">${s.title}</div>
-        <span class="badge ${s.status==='voting'?'bv':s.status==='cancelled'?'bu':'bc'}">${s.status==='voting'?'Đang mở':s.status==='cancelled'?'Đã huỷ':'Đã khóa'}</span>
-      </div>
-      <div style="color:var(--muted);font-size:12px;margin-top:5px">${[s.location, s.scheduled_at?fmtD(s.scheduled_at):''].filter(Boolean).join(' · ')}</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
-        <span style="color:var(--accent2);font-size:13px;font-weight:600">${fmt(s.court_fee)} / sân</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          ${countBadge}
-          <span style="color:var(--muted);font-size:12px">Host: ${s.profiles?.name||'?'}</span>
+    <div class="card" onclick="openSession('${s.id}')" style="padding:0;overflow:hidden;${iVoted&&isVoting?'border-color:rgba(167,139,250,.3)':''}">
+      <div style="display:flex;align-items:stretch">
+        ${dateCol}
+        <div style="flex:1;padding:12px 14px;min-width:0;${votedBorder}">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;
+              background:${badgeBg};color:${badgeColor}">${badgeText}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap">Host: ${s.profiles?.name||'?'}</span>
+          </div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.location || s.title}</div>
+          <div style="height:1px;background:var(--border);margin-bottom:8px"></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:12px;font-weight:700;color:${slotNumColor};white-space:nowrap">${confirmedCount}/${maxP}</span>
+            <div style="flex:1;height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${slotColor};border-radius:2px"></div>
+            </div>
+            ${remainText ? `<span style="font-size:11px;color:var(--muted);white-space:nowrap">${remainText}</span>` : ''}
+            <span style="font-size:13px;font-weight:700;color:var(--accent2);white-space:nowrap;margin-left:auto">${fmt(s.court_fee)}</span>
+          </div>
         </div>
       </div>
     </div>
