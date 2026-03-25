@@ -1984,6 +1984,21 @@ function renderSession() {
 // ═══════════════════════════════════════
 async function doVote() {
   const { session, votes } = curSession;
+
+  // ── Luôn fetch trạng thái MỚI NHẤT từ DB trước khi vote ──
+  const { data: freshSession, error: fetchErr } = await db
+    .from('sessions').select('status').eq('id', session.id).single();
+  const latestStatus = freshSession?.status ?? session.status;
+  // Đồng bộ lại cache nếu khác
+  if (freshSession && freshSession.status !== curSession.session.status) {
+    curSession.session.status = freshSession.status;
+    renderSession();
+  }
+  if (latestStatus !== 'voting') {
+    toast('Bình chọn đã bị khóa, không thể thay đổi.', 'err');
+    return;
+  }
+
   const exist = votes.find(v => v.voter_id === me.id && v.target_id === me.id);
   if (exist) {
     await db.from('votes').delete().eq('id', exist.id);
@@ -2061,6 +2076,20 @@ async function doEditSession() {
 // Bật/tắt trạng thái tham gia của một thành viên (host thao tác thay)
 async function adminToggleVote(uid) {
   const { session, votes } = curSession;
+
+  // ── Luôn fetch trạng thái MỚI NHẤT từ DB trước khi thao tác ──
+  const { data: freshSession } = await db
+    .from('sessions').select('status').eq('id', session.id).single();
+  const latestStatus = freshSession?.status ?? session.status;
+  if (freshSession && freshSession.status !== curSession.session.status) {
+    curSession.session.status = freshSession.status;
+    renderSession();
+  }
+  if (latestStatus !== 'voting') {
+    toast('Bình chọn đã bị khóa, không thể thay đổi.', 'err');
+    return;
+  }
+
   const exist = votes.find(v => v.voter_id === uid && v.target_id === uid);
   if (exist) {
     // Đã vote → xoá
@@ -2655,9 +2684,20 @@ async function doCloseBinhChon() {
     'Mọi người sẽ không thể vote thêm, nhưng bạn vẫn thêm chi phí hoặc mở lại bình chọn được.'
   )) return;
   load(true);
-  await db.from('sessions').update({ status: 'vote_closed' }).eq('id', session.id);
-  curSession.session.status = 'vote_closed';
+  const { error: lockErr } = await db.from('sessions')
+    .update({ status: 'vote_closed' }).eq('id', session.id);
   load(false);
+  if (lockErr) {
+    toast('Khóa thất bại: ' + lockErr.message, 'err');
+    return;
+  }
+  // Verify lại từ DB sau khi cập nhật để chắc chắn đã lưu
+  const { data: verified } = await db.from('sessions').select('status').eq('id', session.id).single();
+  if (!verified || verified.status !== 'vote_closed') {
+    toast('Khóa không thành công, vui lòng thử lại!', 'err');
+    return;
+  }
+  curSession.session.status = 'vote_closed';
   toast('Đã khóa bình chọn! Vẫn có thể thêm chi phí hoặc mở lại.', 'ok');
   renderSession();
 }
