@@ -556,6 +556,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="tabs" style="margin-bottom:16px;position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0 4px;margin-top:-8px">
       <button class="tab active" id="tab-open" onclick="switchHomeTab('open')">🏸 Đang mở</button>
       <button class="tab" id="tab-mine" onclick="switchHomeTab('mine')">📋 Của tôi</button>
+      <button class="tab" id="tab-all" onclick="switchHomeTab('all')" style="display:none">📂 Tất cả</button>
     </div>
     <div id="home-list"></div>
   </div>
@@ -1202,6 +1203,7 @@ function init() {
   if (isDesktop()) initDesktopLayout();
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   goPageDirect('pg-home');
+  showAdminTabIfNeeded();
   loadHome();
   startAllRealtime();
 
@@ -1320,7 +1322,7 @@ function goPage(id) {
     sidebar.style.display = noSidebar ? 'none' : '';
     document.getElementById('desktop-main').style.marginLeft = noSidebar ? '0' : '';
   }
-  if (id === 'pg-home') loadHome();
+  if (id === 'pg-home') { showAdminTabIfNeeded(); loadHome(); }
   if (id === 'pg-fund') loadFundPage();
   if (id === 'pg-admin') loadAdminPage();
 }
@@ -1543,7 +1545,15 @@ function switchHomeTab(tab) {
   homeTab = tab;
   document.getElementById('tab-open').classList.toggle('active', tab==='open');
   document.getElementById('tab-mine').classList.toggle('active', tab==='mine');
+  const tabAll = document.getElementById('tab-all');
+  if (tabAll) tabAll.classList.toggle('active', tab==='all');
   loadHome();
+}
+
+// Hiện tab "Tất cả" nếu là admin (gọi sau khi me đã load xong)
+function showAdminTabIfNeeded() {
+  const tabAll = document.getElementById('tab-all');
+  if (tabAll) tabAll.style.display = me?.is_admin ? '' : 'none';
 }
 
 async function loadHome() {
@@ -1598,6 +1608,30 @@ async function loadHome() {
     (memberRows||[]).forEach(m => { memberMap[m.session_id] = (memberMap[m.session_id]||0)+1; });
     (guestRows||[]).forEach(g => { guestMap[g.session_id] = (guestMap[g.session_id]||0)+1; });
     el.innerHTML = sessions.map(s => renderSessionCard(s, confirmedMap[s.id]||0, memberMap[s.id]||0, iVotedMap[s.id]||false, guestMap[s.id]||0)).join('');
+
+  } else if (homeTab === 'all' && me.is_admin) {
+    // Admin: tất cả buổi mọi trạng thái, sắp xếp mới nhất trước
+    const { data: allSessions } = await db.from('sessions')
+      .select('*, profiles!host_id(name)')
+      .order('created_at', { ascending: false });
+    if (!allSessions?.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-icon">📂</div><div>Chưa có buổi nào</div></div>';
+      return;
+    }
+    const sidsA = allSessions.map(s => s.id);
+    const [{ data: voteRowsA }, { data: memberRowsA }, { data: guestRowsA }] = await Promise.all([
+      db.from('votes').select('session_id,voter_id,target_id').in('session_id', sidsA),
+      db.from('session_members').select('session_id').in('session_id', sidsA),
+      db.from('session_guests').select('session_id').in('session_id', sidsA)
+    ]);
+    const confirmedMapA = {}, memberMapA = {}, iVotedMapA = {}, guestMapA = {};
+    (voteRowsA||[]).forEach(v => {
+      if (v.voter_id === v.target_id) confirmedMapA[v.session_id] = (confirmedMapA[v.session_id]||0)+1;
+      if (v.voter_id === me.id && v.target_id === me.id) iVotedMapA[v.session_id] = true;
+    });
+    (memberRowsA||[]).forEach(m => { memberMapA[m.session_id] = (memberMapA[m.session_id]||0)+1; });
+    (guestRowsA||[]).forEach(g => { guestMapA[g.session_id] = (guestMapA[g.session_id]||0)+1; });
+    el.innerHTML = allSessions.map(s => renderSessionCard(s, confirmedMapA[s.id]||0, memberMapA[s.id]||0, iVotedMapA[s.id]||false, guestMapA[s.id]||0)).join('');
 
   } else {
     // Buổi của tôi (đã join hoặc host)
@@ -1852,7 +1886,7 @@ function renderSession() {
   const btnLock  = document.getElementById('host-close-btn').querySelector('button:first-child');
   const btnMoney = document.getElementById('host-close-btn').querySelector('button:last-child');
   if (btnLock)  btnLock.style.display  = !isLocked ? '' : 'none';
-  if (btnMoney) btnMoney.style.display = isVoteClosed && !isCancelled ? '' : 'none';
+  if (btnMoney) btnMoney.style.display = isLocked && !isCancelled ? '' : 'none';
   // Nút mở lại bình chọn (chỉ khi vote_closed)
   let reopenBtn = document.getElementById('btn-reopen-vote');
   if (!reopenBtn && isVoteClosed && isHost) {
@@ -2788,9 +2822,9 @@ async function doClose() {
     .select('*, expense_assignments(user_id, amount), guest_expense_assignments(guest_id, amount)')
     .eq('session_id', session.id);
 
-  // Tính tiền từng người — KHÔNG làm tròn, chia đều chính xác đến 1đ
-  const roundExact = v => Math.round(v); // làm tròn đến 1đ
-  const courtEach = session.court_fee / totalPpl;
+  // Tính tiền từng người — làm tròn 1000đ, phần dư vào host để tổng khớp
+  const round1k = v => Math.round(v / 1000) * 1000;
+  const courtEach = session.court_fee / totalPpl; // chưa làm tròn
   const extraMap  = {};
   picked.forEach(m  => { extraMap['m_'+m.user_id] = []; });
   guests.forEach(g  => { extraMap['g_'+g.id]       = []; });
@@ -2823,49 +2857,42 @@ async function doClose() {
     }
   });
 
-  // Tính tiền từng thành viên (không làm tròn 1000đ — chia đều đến 1đ)
+  // Tính tiền từng thành viên (làm tròn 1000đ)
   const memberPayData = picked.map(m => {
     const extras   = extraMap['m_'+m.user_id] || [];
     const extraSum = extras.reduce((s,x) => s+x.amount, 0);
-    const total    = roundExact(courtEach + extraSum);
+    const rawTotal = courtEach + extraSum;
+    const total    = round1k(rawTotal);
     const breakdown = [
-      { name: 'Phí sân', amount: roundExact(courtEach) },
-      ...extras.map(x => ({ name: x.name, amount: roundExact(x.amount) }))
+      { name: 'Phí sân', amount: round1k(courtEach) },
+      ...extras.map(x => ({ name: x.name, amount: round1k(x.amount) }))
     ];
     return { session_id: session.id, user_id: m.user_id, amount: total, breakdown, is_paid: false };
   });
-
-  // Tính tiền khách vãng lai TRƯỚC để tính đúng phần dư
-  const guestPayData = guests.map(g => {
-    const extras   = extraMap['g_'+g.id] || [];
-    const extraSum = extras.reduce((s,x) => s+x.amount, 0);
-    const total    = roundExact(courtEach + extraSum);
-    const breakdown = [
-      { name: 'Phí sân', amount: roundExact(courtEach) },
-      ...extras.map(x => ({ name: x.name, amount: roundExact(x.amount) }))
-    ];
-    return { session_id: session.id, guest_id: g.id, amount: total, breakdown, is_paid: false };
-  });
-
-  // Phần dư do làm tròn 1đ (thường 0–vài đồng) → đổ vào host, không ảnh hưởng hiển thị
-  const allExpensesTotal = (expenses||[]).reduce((s,e) => s+e.amount, 0);
-  const grandTotal  = session.court_fee + allExpensesTotal;
+  // Điều chỉnh phần dư vào host để tổng đúng với court_fee
   const memberTotal = memberPayData.reduce((s,p) => s+p.amount, 0);
-  const guestTotal  = guestPayData.reduce((s,p) => s+p.amount, 0);
-  const memberDiff  = grandTotal - memberTotal - guestTotal;
-  if (memberDiff !== 0) {
-    const hostMPay = memberPayData.find(p => p.user_id === session.host_id) || memberPayData[0];
-    if (hostMPay) {
-      hostMPay.amount += memberDiff;
-      const courtItem = hostMPay.breakdown.find(b => b.name === 'Phí sân');
-      if (courtItem) courtItem.amount += memberDiff;
-    }
+  const memberDiff  = session.court_fee - memberTotal;
+  const hostMPay = memberPayData.find(p => p.user_id === session.host_id) || memberPayData[0];
+  if (hostMPay) {
+    hostMPay.amount += memberDiff;
+    const courtItem = hostMPay.breakdown.find(b => b.name === 'Phí sân');
+    if (courtItem) courtItem.amount += memberDiff;
   }
 
   await db.from('payments').upsert(memberPayData, { onConflict: 'session_id,user_id' });
 
   // Upsert guest payments (không liên quan quỹ)
   if (guests.length) {
+    const guestPayData = guests.map(g => {
+      const extras   = extraMap['g_'+g.id] || [];
+      const extraSum = extras.reduce((s,x) => s+x.amount, 0);
+      const total    = round1k(courtEach + extraSum);
+      const breakdown = [
+        { name: 'Phí sân', amount: round1k(courtEach) },
+        ...extras.map(x => ({ name: x.name, amount: round1k(x.amount) }))
+      ];
+      return { session_id: session.id, guest_id: g.id, amount: total, breakdown, is_paid: false };
+    });
     await db.from('guest_payments').upsert(guestPayData, { onConflict: 'session_id,guest_id' });
   }
 
