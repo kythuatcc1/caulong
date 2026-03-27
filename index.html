@@ -1852,7 +1852,7 @@ function renderSession() {
   const btnLock  = document.getElementById('host-close-btn').querySelector('button:first-child');
   const btnMoney = document.getElementById('host-close-btn').querySelector('button:last-child');
   if (btnLock)  btnLock.style.display  = !isLocked ? '' : 'none';
-  if (btnMoney) btnMoney.style.display = isLocked && !isCancelled ? '' : 'none';
+  if (btnMoney) btnMoney.style.display = isVoteClosed && !isCancelled ? '' : 'none';
   // Nút mở lại bình chọn (chỉ khi vote_closed)
   let reopenBtn = document.getElementById('btn-reopen-vote');
   if (!reopenBtn && isVoteClosed && isHost) {
@@ -2788,9 +2788,9 @@ async function doClose() {
     .select('*, expense_assignments(user_id, amount), guest_expense_assignments(guest_id, amount)')
     .eq('session_id', session.id);
 
-  // Tính tiền từng người — làm tròn 1000đ, phần dư vào host để tổng khớp
-  const round1k = v => Math.round(v / 1000) * 1000;
-  const courtEach = session.court_fee / totalPpl; // chưa làm tròn
+  // Tính tiền từng người — KHÔNG làm tròn, chia đều chính xác đến 1đ
+  const roundExact = v => Math.round(v); // làm tròn đến 1đ
+  const courtEach = session.court_fee / totalPpl;
   const extraMap  = {};
   picked.forEach(m  => { extraMap['m_'+m.user_id] = []; });
   guests.forEach(g  => { extraMap['g_'+g.id]       = []; });
@@ -2823,42 +2823,49 @@ async function doClose() {
     }
   });
 
-  // Tính tiền từng thành viên (làm tròn 1000đ)
+  // Tính tiền từng thành viên (không làm tròn 1000đ — chia đều đến 1đ)
   const memberPayData = picked.map(m => {
     const extras   = extraMap['m_'+m.user_id] || [];
     const extraSum = extras.reduce((s,x) => s+x.amount, 0);
-    const rawTotal = courtEach + extraSum;
-    const total    = round1k(rawTotal);
+    const total    = roundExact(courtEach + extraSum);
     const breakdown = [
-      { name: 'Phí sân', amount: round1k(courtEach) },
-      ...extras.map(x => ({ name: x.name, amount: round1k(x.amount) }))
+      { name: 'Phí sân', amount: roundExact(courtEach) },
+      ...extras.map(x => ({ name: x.name, amount: roundExact(x.amount) }))
     ];
     return { session_id: session.id, user_id: m.user_id, amount: total, breakdown, is_paid: false };
   });
-  // Điều chỉnh phần dư vào host để tổng đúng với court_fee
+
+  // Tính tiền khách vãng lai TRƯỚC để tính đúng phần dư
+  const guestPayData = guests.map(g => {
+    const extras   = extraMap['g_'+g.id] || [];
+    const extraSum = extras.reduce((s,x) => s+x.amount, 0);
+    const total    = roundExact(courtEach + extraSum);
+    const breakdown = [
+      { name: 'Phí sân', amount: roundExact(courtEach) },
+      ...extras.map(x => ({ name: x.name, amount: roundExact(x.amount) }))
+    ];
+    return { session_id: session.id, guest_id: g.id, amount: total, breakdown, is_paid: false };
+  });
+
+  // Phần dư do làm tròn 1đ (thường 0–vài đồng) → đổ vào host, không ảnh hưởng hiển thị
+  const allExpensesTotal = (expenses||[]).reduce((s,e) => s+e.amount, 0);
+  const grandTotal  = session.court_fee + allExpensesTotal;
   const memberTotal = memberPayData.reduce((s,p) => s+p.amount, 0);
-  const memberDiff  = session.court_fee - memberTotal;
-  const hostMPay = memberPayData.find(p => p.user_id === session.host_id) || memberPayData[0];
-  if (hostMPay) {
-    hostMPay.amount += memberDiff;
-    const courtItem = hostMPay.breakdown.find(b => b.name === 'Phí sân');
-    if (courtItem) courtItem.amount += memberDiff;
+  const guestTotal  = guestPayData.reduce((s,p) => s+p.amount, 0);
+  const memberDiff  = grandTotal - memberTotal - guestTotal;
+  if (memberDiff !== 0) {
+    const hostMPay = memberPayData.find(p => p.user_id === session.host_id) || memberPayData[0];
+    if (hostMPay) {
+      hostMPay.amount += memberDiff;
+      const courtItem = hostMPay.breakdown.find(b => b.name === 'Phí sân');
+      if (courtItem) courtItem.amount += memberDiff;
+    }
   }
 
   await db.from('payments').upsert(memberPayData, { onConflict: 'session_id,user_id' });
 
   // Upsert guest payments (không liên quan quỹ)
   if (guests.length) {
-    const guestPayData = guests.map(g => {
-      const extras   = extraMap['g_'+g.id] || [];
-      const extraSum = extras.reduce((s,x) => s+x.amount, 0);
-      const total    = round1k(courtEach + extraSum);
-      const breakdown = [
-        { name: 'Phí sân', amount: round1k(courtEach) },
-        ...extras.map(x => ({ name: x.name, amount: round1k(x.amount) }))
-      ];
-      return { session_id: session.id, guest_id: g.id, amount: total, breakdown, is_paid: false };
-    });
     await db.from('guest_payments').upsert(guestPayData, { onConflict: 'session_id,guest_id' });
   }
 
