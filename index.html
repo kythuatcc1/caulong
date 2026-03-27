@@ -615,6 +615,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         <div class="mi"><span class="ml">Địa điểm</span><span class="mv" id="s-loc">—</span></div>
         <div class="mi"><span class="ml">Phí sân</span><span class="mv" id="s-fee" style="color:var(--accent2)">—</span></div>
         <div class="mi"><span class="ml">Tối đa</span><span class="mv" id="s-max">—</span></div>
+        <div class="mi" id="s-total-wrap" style="display:none"><span class="ml">Tổng chi phí</span><span class="mv" id="s-total" style="color:var(--accent);font-weight:800">—</span></div>
       </div>
       <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span class="badge" id="s-badge"></span>
@@ -1877,6 +1878,34 @@ function renderSession() {
   document.getElementById('s-max').textContent      = session.max_players + ' người';
   document.getElementById('s-host-lbl').textContent = `Host: ${session.profiles?.name||'?'}`;
 
+  // Tổng chi phí = phí sân + tất cả khoản phụ (async, không block render)
+  (async () => {
+    const { data: exps } = await db.from('expenses').select('amount').eq('session_id', session.id);
+    const extraTotal = (exps||[]).reduce((s,e) => s+e.amount, 0);
+    const grandTotal = session.court_fee + extraTotal;
+    const wrap = document.getElementById('s-total-wrap');
+    const el   = document.getElementById('s-total');
+    if (wrap && el) {
+      if (extraTotal > 0) {
+        el.textContent = fmt(grandTotal);
+        // Breakdown nhỏ: phí sân + chi phí khác
+        el.title = `Phí sân ${fmt(session.court_fee)} + Khác ${fmt(extraTotal)}`;
+        wrap.style.display = '';
+        // Thêm chú thích nhỏ ngay dưới nếu chưa có
+        let sub = document.getElementById('s-total-sub');
+        if (!sub) {
+          sub = document.createElement('div');
+          sub.id = 's-total-sub';
+          sub.style.cssText = 'font-size:10px;color:var(--muted);margin-top:2px';
+          wrap.appendChild(sub);
+        }
+        sub.textContent = `Sân ${fmt(session.court_fee)} + Khác ${fmt(extraTotal)}`;
+      } else {
+        wrap.style.display = 'none';
+      }
+    }
+  })();
+
   const badge = document.getElementById('s-badge');
   badge.className   = 'badge ' + (isCancelled ? 'bu' : isClosed ? 'bc' : isVoteClosed ? 'bc' : 'bv');
   badge.textContent = isCancelled ? 'Đã huỷ' : isClosed ? 'Đã khóa' : isVoteClosed ? 'Chờ chia tiền' : 'Đang mở';
@@ -2421,6 +2450,27 @@ async function renderExpenses() {
   document.getElementById('exp-hint').textContent =
     `${expenses.length} khoản · Tổng ${fmt(totalExtra)}`;
 
+  // Đồng bộ lên card thông tin
+  const grandTotal = session.court_fee + totalExtra;
+  const wrapEl = document.getElementById('s-total-wrap');
+  const totEl  = document.getElementById('s-total');
+  if (wrapEl && totEl) {
+    if (totalExtra > 0) {
+      totEl.textContent = fmt(grandTotal);
+      wrapEl.style.display = '';
+      let sub = document.getElementById('s-total-sub');
+      if (!sub) {
+        sub = document.createElement('div');
+        sub.id = 's-total-sub';
+        sub.style.cssText = 'font-size:10px;color:var(--muted);margin-top:2px';
+        wrapEl.appendChild(sub);
+      }
+      sub.textContent = `Sân ${fmt(session.court_fee)} + Khác ${fmt(totalExtra)}`;
+    } else {
+      wrapEl.style.display = 'none';
+    }
+  }
+
   expList.innerHTML = expenses.map(e => {
     const cls   = e.split_type === 'all' ? 'exp-all' : e.split_type === 'selected' ? 'exp-sel' : 'exp-pers';
     const bCls  = e.split_type === 'all' ? 'exp-badge-all' : e.split_type === 'selected' ? 'exp-badge-sel' : 'exp-badge-pers';
@@ -2927,26 +2977,27 @@ async function autoDeductFundForSession(picked, session) {
 
   const userIds = payments.map(p => p.user_id);
   const { data: profiles } = await db.from('profiles')
-    .select('id, fund_balance').in('id', userIds);
+    .select('id, name, fund_balance').in('id', userIds);
 
-  const balMap = {};
-  (profiles||[]).forEach(p => { balMap[p.id] = p.fund_balance || 0; });
+  const profileMap = {};
+  (profiles||[]).forEach(p => { profileMap[p.id] = { name: p.name || '?', bal: p.fund_balance || 0 }; });
 
   let deducted = 0;
   let newBalForMe = null;
   for (const pay of payments) {
-    const bal    = balMap[pay.user_id] || 0;
+    const info   = profileMap[pay.user_id] || { name: '?', bal: 0 };
+    const bal    = info.bal;
     const newBal = bal - pay.amount;  // có thể âm
 
     // Cập nhật số dư (kể cả âm)
     await db.from('profiles').update({ fund_balance: newBal }).eq('id', pay.user_id);
 
-    // Ghi fund_transaction
+    // Ghi fund_transaction — ghi rõ tên thành viên trong description
     await db.from('fund_transactions').insert({
       user_id:     pay.user_id,
       amount:      -pay.amount,
       type:        'deduction',
-      description: `Tự động trừ: ${session.title}`,
+      description: `Trừ phí ${info.name}: ${session.title}`,
       session_id:  session.id,
       status:      'confirmed',
       confirmed_by: session.host_id,
@@ -3711,6 +3762,28 @@ async function loadFundPage() {
   renderFundTxnList(txns||[], document.getElementById('fund-txn-list'), false);
 }
 
+// Helper: nhận diện nhãn hiển thị thông minh dựa vào type + description
+function getTypeLabel(t) {
+  if (t.type === 'deposit') return 'Đóng quỹ';
+  if (t.type === 'deduction') {
+    const d = t.description || '';
+    if (d.startsWith('Bảo lãnh khách')) {
+      const m = d.match(/Bảo lãnh khách "([^"]+)"/);
+      return m ? `Bảo lãnh cho "${m[1]}"` : 'Bảo lãnh';
+    }
+    return 'Trừ phí';
+  }
+  if (t.type === 'refund') {
+    const d = t.description || '';
+    if (d.startsWith('Hoàn quỹ bảo lãnh')) {
+      const m = d.match(/Hoàn quỹ bảo lãnh "([^"]+)"/);
+      return m ? `Hoàn bảo lãnh "${m[1]}"` : 'Hoàn tiền';
+    }
+    return 'Hoàn tiền';
+  }
+  return t.type || '—';
+}
+
 function renderFundTxnList(txns, el, showUser) {
   if (!txns.length) {
     el.innerHTML = '<div class="empty" style="padding:28px"><div style="font-size:13px">Chưa có giao dịch nào</div></div>';
@@ -3720,7 +3793,7 @@ function renderFundTxnList(txns, el, showUser) {
     const isIn   = t.amount > 0;
     const status = t.status === 'pending' ? '⏳ Chờ duyệt' : t.status === 'confirmed' ? '✓ Đã xác nhận' : '✕ Từ chối';
     const stCls  = t.status === 'pending' ? 'pending-row' : t.status === 'confirmed' ? 'confirmed-row' : 'rejected-row';
-    const typeLabel = t.type === 'deposit' ? 'Đóng quỹ' : t.type === 'deduction' ? 'Trừ phí' : 'Hoàn tiền';
+    const typeLabel = getTypeLabel(t);
     // Tên buổi — ưu tiên join sessions, fallback description
     const sessionName = t.sessions?.title
       ? `<div style="font-size:11px;color:var(--accent2);margin-top:2px">🏸 ${t.sessions.title}</div>`
@@ -4102,14 +4175,15 @@ async function toggleAdminMemberTxn(userId, userName) {
     detail.innerHTML = txns.map(t => {
       const isIn = t.amount > 0;
       const status = t.status === 'pending' ? '⏳' : t.status === 'confirmed' ? '✓' : '✕';
-      const typeLabel = t.type === 'deposit' ? 'Đóng quỹ' : t.type === 'deduction' ? 'Trừ phí' : 'Hoàn tiền';
+      const typeLabel = getTypeLabel(t);
       return `
         <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
           <div style="width:24px;height:24px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
             font-size:11px;font-weight:700;background:${isIn?'rgba(34,197,94,.15)':'rgba(239,68,68,.1)'};
             color:${isIn?'var(--green)':'var(--red)'}">${isIn?'↑':'↓'}</div>
           <div style="flex:1">
-            <div style="font-size:12px;font-weight:600">${typeLabel}${t.description?' · '+t.description:''}</div>
+            <div style="font-size:12px;font-weight:600">${typeLabel}</div>
+            ${t.sessions?.title?`<div style="font-size:10px;color:var(--accent2);margin-top:1px">🏸 ${t.sessions.title}</div>`:''}
             <div style="font-size:10px;color:var(--muted)">${new Date(t.created_at).toLocaleString('vi-VN')} ${status}</div>
           </div>
           <div style="font-size:13px;font-weight:700;color:${isIn?'var(--green)':'var(--red)'}">
@@ -4126,7 +4200,7 @@ async function renderAdminHistory(txns) {
   el.innerHTML = txns.map(t => {
     const isIn   = t.amount > 0;
     const status = t.status === 'pending' ? '⏳' : t.status === 'confirmed' ? '✓' : '✕';
-    const typeLabel = t.type === 'deposit' ? 'Đóng quỹ' : t.type === 'deduction' ? 'Trừ phí' : 'Hoàn tiền';
+    const typeLabel = getTypeLabel(t);
     return `
       <div class="ftx-row ${t.status+'-row'}">
         <div class="ftx-icon ${isIn?'ftx-in':t.status==='pending'?'ftx-pend':'ftx-out'}">${isIn?'↑':'↓'}</div>
@@ -4134,7 +4208,7 @@ async function renderAdminHistory(txns) {
           <div style="display:flex;justify-content:space-between">
             <div>
               <div style="font-size:13px;font-weight:600">${t.profiles?.name||'?'} · ${typeLabel}</div>
-              ${t.sessions?.title ? `<div style="font-size:11px;color:var(--accent2);margin-top:1px">🏸 ${t.sessions.title}</div>` : (t.description ? `<div style="font-size:11px;color:var(--muted);margin-top:1px">${t.description}</div>` : '')}
+              ${t.sessions?.title ? `<div style="font-size:11px;color:var(--accent2);margin-top:1px">🏸 ${t.sessions.title}</div>` : ''}
               <div style="font-size:11px;color:var(--muted);margin-top:2px">${new Date(t.created_at).toLocaleDateString('vi-VN')} ${status}</div>
             </div>
             <div style="font-size:14px;font-weight:700;color:${isIn?'var(--green)':'var(--red)'}">
