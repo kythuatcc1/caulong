@@ -837,7 +837,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div class="pay-amt" id="pay-pp">—</div>
       <div style="color:var(--muted);font-size:12px;margin-top:4px" id="pay-sub"></div>
       <div class="chips">
-        <div class="chip"><div class="chip-val" id="pay-total">—</div><div class="chip-lbl">Tổng phí sân</div></div>
+        <div class="chip"><div class="chip-val" id="pay-total">—</div><div class="chip-lbl">Tổng chi phí</div></div>
         <div class="chip"><div class="chip-val" id="pay-n">—</div><div class="chip-lbl">Số người</div></div>
         <div class="chip"><div class="chip-val" id="pay-done" style="color:var(--green)">—</div><div class="chip-lbl">Đã trả</div></div>
       </div>
@@ -2097,10 +2097,20 @@ async function doVote() {
 
   const exist = votes.find(v => v.voter_id === me.id && v.target_id === me.id);
   if (exist) {
+    // Huỷ bình chọn — không cần kiểm tra giới hạn
     await db.from('votes').delete().eq('id', exist.id);
     curSession.votes = votes.filter(v => v.id !== exist.id);
     toast('Đã huỷ xác nhận tham gia');
   } else {
+    // Thêm bình chọn — kiểm tra giới hạn chỗ (tổng selfvote + khách)
+    const maxP = session.max_players || 10;
+    const selfVoteCount = votes.filter(v => v.voter_id === v.target_id).length;
+    const guestCount    = (curSession.guests || []).length;
+    const totalNow      = selfVoteCount + guestCount;
+    if (totalNow >= maxP) {
+      toast(`Đã đủ ${maxP}/${maxP} người, không thể thêm!`, 'err');
+      return;
+    }
     const { data } = await db.from('votes').insert({
       session_id: session.id,
       voter_id:   me.id,
@@ -2391,7 +2401,19 @@ function toggleGuestForm() {
 async function addGuest() {
   const name = document.getElementById('guest-name-input').value.trim();
   if (!name) return toast('Nhập tên khách', 'err');
-  const sid = curSession.session.id;
+
+  // Kiểm tra giới hạn chỗ (kể cả admin không được vượt)
+  const { session, votes, guests } = curSession;
+  const maxP          = session.max_players || 10;
+  const selfVoteCount = (votes || []).filter(v => v.voter_id === v.target_id).length;
+  const guestCount    = (guests || []).length;
+  const totalNow      = selfVoteCount + guestCount;
+  if (totalNow >= maxP) {
+    toast(`Đã đủ ${maxP}/${maxP} người, không thể thêm khách!`, 'err');
+    return;
+  }
+
+  const sid = session.id;
   const { data: guest, error } = await db.from('session_guests').insert({ session_id: sid, name }).select().single();
   if (error) return toast(error.message, 'err');
   curSession.guests = [...(curSession.guests||[]), guest];
@@ -2874,84 +2896,100 @@ async function doClose() {
     .select('*, expense_assignments(user_id, amount), guest_expense_assignments(guest_id, amount)')
     .eq('session_id', session.id);
 
-  // ── Tính tiền từng người ──────────────────────────────────────
-  // Phí sân: chia ĐỀU cho tất cả (picked + guests), làm tròn đến 1đ
-  // Chi phí phụ: theo split_type do host chọn (all / selected / custom)
-  // Phần dư: CHỈ tính trên PHÍ SÂN — tránh lẫn với chi phí phụ không đều
+  // Đếm tổng số tài khoản câu lạc bộ (để tính pool A = 15k × tất cả thành viên CLB)
+  const { count: clubMemberCount } = await db.from('profiles').select('id', { count: 'exact', head: true });
+  const totalClubMembers = clubMemberCount || 1;
+
+  // ── Tính tiền từng người (logic ưu đãi bình chọn) ─────────────
+  //
+  //  A  = 15.000đ × tổng số tài khoản CLB     (pool ưu đãi — trích từ tất cả thành viên CLB)
+  //  B  = tổng chi phí ÷ tổng số người tham gia (phí bình quân buổi đó)
+  //  C₀ = tỷ lệ vị trí × A                   (ưu đãi theo thứ tự bình chọn)
+  //  Dư = A − Σ(C₀ của tất cả)               (phần A chưa dùng — khi < 8 người bình chọn)
+  //  Ex = Dư ÷ tổng số người tham gia         (chia đều phần dư cho người tham gia buổi)
+  //  C  = C₀ + Ex                             (ưu đãi cuối)
+  //  Chi phí cuối = max(0, B − C)
+  //
+  //  Tỷ lệ theo thứ tự bình chọn:
+  //    1 (host sân) = 20%
+  //    2, 3, 4      = 15%
+  //    5, 6         = 10%
+  //    7, 8         =  8%   → tổng = 100% → không còn phần dư
+  //    9+           =  0%
+  //
+  //  Khách vãng lai: chỉ nhận phần chia đều phần dư (nếu có)
   // ─────────────────────────────────────────────────────────────
-  const roundEx = v => Math.round(v);
-  const courtEach = session.court_fee / totalPpl;
+  const DISCOUNT_RATES = [0.20, 0.15, 0.15, 0.15, 0.10, 0.10, 0.08, 0.08];
+  const FUND_PER_PERSON = 15000;
 
-  const extraMap  = {};
-  picked.forEach(m  => { extraMap['m_'+m.user_id] = []; });
-  guests.forEach(g  => { extraMap['g_'+g.id]       = []; });
+  // Tổng chi phí toàn buổi (phí sân + mọi khoản phụ)
+  const totalAllExpenses = (expenses||[]).reduce((s, e) => s + (e.amount || 0), 0);
+  const totalCost = session.court_fee + totalAllExpenses;
 
-  (expenses||[]).forEach(e => {
-    const assigns      = e.expense_assignments || [];
-    const guestAssigns = e.guest_expense_assignments || [];
-    if (e.split_type === 'all') {
-      // Chia đều tất cả người
-      const share = e.amount / totalPpl;
-      picked.forEach(m  => extraMap['m_'+m.user_id].push({ name: e.name, amount: share }));
-      guests.forEach(g  => extraMap['g_'+g.id].push({ name: e.name, amount: share }));
-    } else if (e.split_type === 'selected') {
-      // Chia đều những người được chọn
-      const totalSel = assigns.length + guestAssigns.length;
-      if (totalSel) {
-        const share = e.amount / totalSel;
-        assigns.forEach(a => {
-          if (extraMap['m_'+a.user_id]) extraMap['m_'+a.user_id].push({ name: e.name, amount: share });
-        });
-        guestAssigns.forEach(a => {
-          if (extraMap['g_'+a.guest_id]) extraMap['g_'+a.guest_id].push({ name: e.name, amount: share });
-        });
-      }
-    } else {
-      // Gán riêng từng người
-      assigns.forEach(a => {
-        if (extraMap['m_'+a.user_id]) extraMap['m_'+a.user_id].push({ name: e.name, amount: a.amount });
-      });
-      guestAssigns.forEach(a => {
-        if (extraMap['g_'+a.guest_id]) extraMap['g_'+a.guest_id].push({ name: e.name, amount: a.amount });
-      });
-    }
+  // A: pool ưu đãi = 15k × tổng thành viên CLB (không phải số người tham gia buổi)
+  // B: phí bình quân = tổng chi phí ÷ số người tham gia buổi đó
+  const A = FUND_PER_PERSON * totalClubMembers;
+  const B = totalPpl > 0 ? totalCost / totalPpl : 0;
+
+  // Xác định thứ tự bình chọn (pickedVotes đã được sắp: host trước, rồi theo thời gian)
+  // voteOrderMap: user_id → vị trí 1-based
+  const voteOrderMap = {};
+  pickedVotes.forEach((v, idx) => { if (v) voteOrderMap[v.voter_id] = idx + 1; });
+
+  // Tính C₀ (ưu đãi theo vị trí) cho từng thành viên và tổng đã dùng
+  const memberRates = picked.map(m => {
+    const position = voteOrderMap[m.user_id] || 999;
+    const rate     = position <= DISCOUNT_RATES.length ? DISCOUNT_RATES[position - 1] : 0;
+    const C0       = rate * A;
+    return { m, position, rate, C0 };
   });
 
-  // Tính member payments (làm tròn đến 1đ, không round 1000đ)
-  const memberPayData = picked.map(m => {
-    const extras   = extraMap['m_'+m.user_id] || [];
-    const extraSum = extras.reduce((s,x) => s+x.amount, 0);
-    const total    = roundEx(courtEach + extraSum);
+  // Phần dư của A sau khi trừ hết C₀ của thành viên (nếu < 8 người thì còn dư)
+  const usedA    = memberRates.reduce((s, r) => s + r.C0, 0);
+  const remainA  = Math.max(0, A - usedA);
+  // Chia đều phần dư cho TẤT CẢ người tham gia (thành viên + khách)
+  const extraEach = totalPpl > 0 ? remainA / totalPpl : 0;
+
+  // Tính member payments
+  const memberPayData = memberRates.map(({ m, position, rate, C0 }) => {
+    const C           = C0 + extraEach;                // ưu đãi cuối = vị trí + phần dư bình quân
+    const finalAmount = Math.round(B - C);  // có thể âm → hoàn lại vào quỹ
+    const C0r = Math.round(C0);
+    const Exr = Math.round(extraEach);
     const breakdown = [
-      { name: 'Phí sân', amount: roundEx(courtEach) },
-      ...extras.map(x => ({ name: x.name, amount: roundEx(x.amount) }))
+      { name: `Phí bình quân (${fmt(Math.round(totalCost))} ÷ ${totalPpl} người)`, amount: Math.round(B) },
+      ...(C0r > 0 ? [{ name: `Ưu đãi vị trí ${position} (${Math.round(rate * 100)}% × pool ${fmt(A)})`, amount: -C0r }] : []),
+      ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${totalPpl} người`, amount: -Exr }] : [])
     ];
-    return { session_id: session.id, user_id: m.user_id, amount: total, breakdown, is_paid: false };
+    return { session_id: session.id, user_id: m.user_id, amount: finalAmount, breakdown, is_paid: false };
   });
 
-  // Tính guest payments TRƯỚC khi tính phần dư
+  // Tính guest payments — chỉ nhận phần chia đều phần dư (không có ưu đãi vị trí)
   const guestPayData = guests.map(g => {
-    const extras   = extraMap['g_'+g.id] || [];
-    const extraSum = extras.reduce((s,x) => s+x.amount, 0);
-    const total    = roundEx(courtEach + extraSum);
+    const C           = extraEach;
+    const finalAmount = Math.round(B - C);  // có thể âm → hoàn lại vào quỹ
+    const Exr = Math.round(extraEach);
     const breakdown = [
-      { name: 'Phí sân', amount: roundEx(courtEach) },
-      ...extras.map(x => ({ name: x.name, amount: roundEx(x.amount) }))
+      { name: `Phí bình quân (${fmt(Math.round(totalCost))} ÷ ${totalPpl} người)`, amount: Math.round(B) },
+      ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${totalPpl} người`, amount: -Exr }] : [])
     ];
-    return { session_id: session.id, guest_id: g.id, amount: total, breakdown, is_paid: false };
+    return { session_id: session.id, guest_id: g.id, amount: finalAmount, breakdown, is_paid: false };
   });
 
-  // Điều chỉnh phần dư làm tròn — CHỈ TRÊN PHÍ SÂN (thường 0 đến vài đồng)
-  // KHÔNG dùng memberTotal vì nó bao gồm chi phí phụ khác nhau giữa từng người
-  const courtTotalRounded = [...memberPayData, ...guestPayData]
-    .reduce((s, p) => s + (p.breakdown.find(b => b.name === 'Phí sân')?.amount || 0), 0);
-  const courtAdj = session.court_fee - courtTotalRounded;
-  if (courtAdj !== 0) {
+  // Điều chỉnh phần dư làm tròn vào host (chênh lệch vài đồng do làm tròn)
+  // Tổng kỳ vọng = Σ(B-C) cho từng người = totalCost - Σ(C của tất cả người tham gia)
+  const collectedTotal  = [...memberPayData, ...guestPayData].reduce((s, p) => s + p.amount, 0);
+  const totalDiscounts  = [...memberPayData, ...guestPayData].reduce((s, p) => {
+    return s + p.breakdown.filter(b => b.amount < 0).reduce((ss, b) => ss - b.amount, 0);
+  }, 0);
+  const expectedCollect = Math.round(totalCost - totalDiscounts);
+  const adj = expectedCollect - collectedTotal;
+  if (adj !== 0) {
     const hostPay = memberPayData.find(p => p.user_id === session.host_id) || memberPayData[0];
     if (hostPay) {
-      hostPay.amount += courtAdj;
-      const courtItem = hostPay.breakdown.find(b => b.name === 'Phí sân');
-      if (courtItem) courtItem.amount += courtAdj;
+      hostPay.amount = hostPay.amount + adj;  // không clamp — âm vẫn hợp lệ
+      const baseItem = hostPay.breakdown.find(b => b.amount > 0);
+      if (baseItem) baseItem.amount += adj;
     }
   }
 
@@ -2977,7 +3015,7 @@ async function doClose() {
 
   load(false);
   const autoMsg = autoDeductResults.deducted > 0
-    ? ` · Đã tự trừ quỹ ${autoDeductResults.deducted} người` : '';
+    ? ` · Đã trừ 15k pool + điều chỉnh quỹ ${autoDeductResults.deducted} người tham gia` : '';
   toast(`Đã khóa! ${picked.length} thành viên + ${guests.length} khách${autoMsg}`, 'ok');
   refreshTotalNow();
   renderSession();
@@ -2985,53 +3023,83 @@ async function doClose() {
 }
 
 // Tự động trừ quỹ sau khi khóa buổi
+// Luồng đúng:
+//   Bước 1 — Trừ 15k từ TẤT CẢ thành viên CLB (tạo pool A)
+//   Bước 2 — Với mỗi người tham gia: điều chỉnh thêm (B-C)
+//              > 0 → trừ thêm từ quỹ
+//              < 0 → hoàn lại vào quỹ (ưu đãi > phí bình quân)
+//              = 0 → không làm gì thêm
 async function autoDeductFundForSession(picked, session) {
-  // Load payments vừa tạo + số dư quỹ của từng người
-  const { data: payments } = await db.from('payments')
-    .select('id, user_id, amount').eq('session_id', session.id).eq('is_paid', false);
-  if (!payments?.length) return { deducted: 0 };
+  const now = new Date().toISOString();
+  const POOL_CONTRIBUTION = 15000; // 15k mỗi thành viên CLB
 
-  const userIds = payments.map(p => p.user_id);
-  const { data: profiles } = await db.from('profiles')
-    .select('id, name, fund_balance').in('id', userIds);
+  // ── Bước 1: Lấy TẤT CẢ thành viên CLB và trừ 15k ──
+  const { data: allProfiles } = await db.from('profiles').select('id, name, fund_balance');
+  if (!allProfiles?.length) return { deducted: 0, newBalForMe: null };
 
   const profileMap = {};
-  (profiles||[]).forEach(p => { profileMap[p.id] = { name: p.name || '?', bal: p.fund_balance || 0 }; });
+  allProfiles.forEach(p => { profileMap[p.id] = { name: p.name || '?', bal: p.fund_balance || 0 }; });
 
-  let deducted = 0;
-  let newBalForMe = null;
+  // Trừ 15k từ tất cả thành viên CLB (kể cả người không tham gia buổi)
+  for (const prof of allProfiles) {
+    const newBal = prof.fund_balance - POOL_CONTRIBUTION;
+    await db.from('profiles').update({ fund_balance: newBal }).eq('id', prof.id);
+    await db.from('fund_transactions').insert({
+      user_id:      prof.id,
+      amount:       -POOL_CONTRIBUTION,
+      type:         'deduction',
+      description:  `Đóng pool ưu đãi: ${session.title}`,
+      session_id:   session.id,
+      status:       'confirmed',
+      confirmed_by: session.host_id,
+      confirmed_at: now
+    });
+    // Cập nhật profileMap với số dư sau khi trừ 15k
+    profileMap[prof.id].bal = newBal;
+    if (prof.id === me.id) me.fund_balance = newBal;
+  }
+
+  // ── Bước 2: Load payments (B-C) và điều chỉnh quỹ người tham gia ──
+  const { data: payments } = await db.from('payments')
+    .select('id, user_id, amount').eq('session_id', session.id).eq('is_paid', false);
+  if (!payments?.length) return { deducted: allProfiles.length, newBalForMe: profileMap[me.id]?.bal ?? null };
+
+  let newBalForMe = profileMap[me.id]?.bal ?? null;
+
   for (const pay of payments) {
     const info   = profileMap[pay.user_id] || { name: '?', bal: 0 };
-    const bal    = info.bal;
-    const newBal = bal - pay.amount;  // có thể âm
+    // pay.amount = B - C (có thể âm nếu ưu đãi > phí bình quân)
+    const adjustment = pay.amount; // dương → trừ thêm | âm → hoàn lại
+    const newBal = info.bal - adjustment;
 
-    // Cập nhật số dư (kể cả âm)
     await db.from('profiles').update({ fund_balance: newBal }).eq('id', pay.user_id);
 
-    // Ghi fund_transaction — ghi rõ tên thành viên trong description
-    await db.from('fund_transactions').insert({
-      user_id:     pay.user_id,
-      amount:      -pay.amount,
-      type:        'deduction',
-      description: `Trừ phí ${info.name}: ${session.title}`,
-      session_id:  session.id,
-      status:      'confirmed',
-      confirmed_by: session.host_id,
-      confirmed_at: new Date().toISOString()
-    });
+    if (adjustment !== 0) {
+      await db.from('fund_transactions').insert({
+        user_id:      pay.user_id,
+        amount:       -adjustment,  // âm = hoàn lại, dương = trừ thêm
+        type:         adjustment < 0 ? 'refund' : 'deduction',
+        description:  adjustment < 0
+          ? `Hoàn ưu đãi ${info.name}: ${session.title}`
+          : `Trừ phí ${info.name}: ${session.title}`,
+        session_id:   session.id,
+        status:       'confirmed',
+        confirmed_by: session.host_id,
+        confirmed_at: now
+      });
+    }
 
     // Đánh dấu đã thanh toán qua quỹ
     await db.from('payments').update({
-      is_paid:    true,
+      is_paid:     true,
       paid_method: 'fund',
-      paid_at:    new Date().toISOString()
+      paid_at:     now
     }).eq('id', pay.id);
 
-    // Lưu số dư mới của user hiện tại
     if (pay.user_id === me.id) newBalForMe = newBal;
-    deducted++;
   }
-  return { deducted, newBalForMe };
+
+  return { deducted: payments.length, newBalForMe };
 }
 
 // ═══════════════════════════════════════
@@ -3053,10 +3121,15 @@ async function openPayment(promptUpload = false, navigateTo = true) {
   const isHost  = session.host_id === me.id;
   const myPay   = payments?.find(p => p.user_id === me.id);
 
-  const heroAmt = myPay?.amount || (payments?.[0]?.amount || 0);
-  document.getElementById('pay-pp').textContent    = fmt(heroAmt);
+  const heroAmt = myPay != null ? myPay.amount : (payments?.[0]?.amount || 0);
+  document.getElementById('pay-pp').textContent    = heroAmt < 0
+    ? '+ ' + fmt(-heroAmt)   // hoàn lại
+    : fmt(heroAmt);
   document.getElementById('pay-sub').textContent   = `${session.title} · ${(payments?.length||0) + (guestPayments?.length||0)} người`;
-  document.getElementById('pay-total').textContent = fmt(session.court_fee);
+  // Tính tổng chi phí = phí sân + khoản phụ (chỉ dùng để hiển thị)
+  const { data: expForDisplay } = await db.from('expenses').select('amount').eq('session_id', session.id);
+  const totalExpDisplay = (expForDisplay||[]).reduce((s,e) => s + (e.amount||0), 0);
+  document.getElementById('pay-total').textContent = fmt(session.court_fee + totalExpDisplay);
   document.getElementById('pay-n').textContent     = (payments?.length||0) + (guestPayments?.length||0);
   document.getElementById('pay-done').textContent  = pendingCnt > 0
     ? `${paidCnt}/${payments?.length||0} · ${pendingCnt} chờ duyệt`
@@ -3071,15 +3144,17 @@ async function openPayment(promptUpload = false, navigateTo = true) {
   if (myPay) {
     selfSec.style.display = '';
     const breakdown = Array.isArray(myPay.breakdown) ? myPay.breakdown : [];
-    const bdHtml = breakdown.length > 1
+    const bdHtml = breakdown.length > 0
       ? `<div style="background:rgba(255,255,255,.05);border-radius:10px;padding:10px 12px;margin-top:10px">
           ${breakdown.map(b=>`
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:3px">
-              <span>${b.name}</span><span>${fmt(b.amount)}</span>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;
+              color:${b.amount < 0 ? 'var(--green)' : 'var(--muted)'}">
+              <span>${b.name}</span>
+              <span>${b.amount < 0 ? '−' + fmt(-b.amount) : fmt(b.amount)}</span>
             </div>`).join('')}
           <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;
                border-top:1px solid var(--border);margin-top:6px;padding-top:6px">
-            <span>Tổng của bạn</span><span style="color:var(--accent2)">${fmt(myPay.amount)}</span>
+            <span>Tổng của bạn</span><span style="color:${myPay.amount < 0 ? 'var(--green)' : 'var(--accent2)'}">${myPay.amount < 0 ? '+ ' + fmt(-myPay.amount) + ' (hoàn)' : fmt(myPay.amount)}</span>
           </div>
         </div>` : '';
 
@@ -3097,7 +3172,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
                 ${myPay.paid_method==='fund' ? '<span style="font-size:11px;background:rgba(167,139,250,.2);color:#a78bfa;border-radius:8px;padding:1px 7px;margin-left:6px">Quỹ</span>' : ''}
               </div>
               <div style="font-size:12px;color:var(--muted);margin-top:1px">
-                ${fmt(myPay.amount)} · ${myPay.paid_at ? new Date(myPay.paid_at).toLocaleString('vi-VN') : ''}
+                ${myPay.amount < 0 ? 'Hoàn lại + ' + fmt(-myPay.amount) : fmt(myPay.amount)} · ${myPay.paid_at ? new Date(myPay.paid_at).toLocaleString('vi-VN') : ''}
               </div>
             </div>
             <button onclick="selfMarkPaid('${myPay.id}', true)"
@@ -3131,6 +3206,21 @@ async function openPayment(promptUpload = false, navigateTo = true) {
             border:1px solid rgba(239,68,68,.25);color:var(--red);font-family:'Be Vietnam Pro',sans-serif;
             font-size:13px;cursor:pointer">✕ Huỷ và gửi lại hóa đơn khác</button>
         </div>`;
+    } else if (myPay.amount <= 0) {
+      // Ưu đãi lớn hơn phí → được hoàn lại vào quỹ, không cần chuyển tiền
+      selfSec.innerHTML = `
+        <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.3);border-radius:18px;padding:16px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:28px">🎉</span>
+            <div style="flex:1">
+              <div style="font-size:15px;font-weight:700;color:var(--green)">Được hoàn lại vào quỹ!</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:2px">
+                Ưu đãi của bạn lớn hơn phí bình quân${myPay.amount < 0 ? ' · Hoàn + ' + fmt(-myPay.amount) : ''}
+              </div>
+            </div>
+          </div>
+          ${bdHtml}
+        </div>`;
     } else {
       selfSec.innerHTML = `
         <div style="background:var(--card);border:1px solid var(--border);border-radius:18px;padding:16px">
@@ -3158,11 +3248,13 @@ async function openPayment(promptUpload = false, navigateTo = true) {
   document.getElementById('pay-list').innerHTML = (payments||[]).map(p => {
     const isMe      = p.user_id === me.id;
     const breakdown = Array.isArray(p.breakdown) ? p.breakdown : [];
-    const bdHtml = !isMe && breakdown.length > 1
+    const bdHtml = !isMe && breakdown.length > 0
       ? `<div style="margin-top:5px;padding:7px 10px;background:var(--bg3);border-radius:8px">
           ${breakdown.map(b=>`
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:2px">
-              <span>${b.name}</span><span>${fmt(b.amount)}</span>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;
+              color:${b.amount < 0 ? 'var(--green)' : 'var(--muted)'}">
+              <span>${b.name}</span>
+              <span>${b.amount < 0 ? '−' + fmt(-b.amount) : fmt(b.amount)}</span>
             </div>`).join('')}
         </div>` : '';
 
@@ -3234,7 +3326,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
               <span style="font-weight:600;font-size:14px">${p.profiles?.name||'?'}</span>
               ${isMe ? '<span style="background:rgba(71,212,255,.15);color:var(--accent2);font-size:10px;padding:1px 6px;border-radius:8px">Bạn</span>' : ''}
             </div>
-            <div style="color:var(--accent2);font-size:14px;font-weight:700;margin-top:2px">${fmt(p.amount)}</div>
+            <div style="color:${p.amount < 0 ? 'var(--green)' : 'var(--accent2)'};font-size:14px;font-weight:700;margin-top:2px">${p.amount < 0 ? '+ ' + fmt(-p.amount) + ' (hoàn)' : fmt(p.amount)}</div>
             ${bdHtml}
             ${assignedGuestsHtml}
             ${receiptThumb}
