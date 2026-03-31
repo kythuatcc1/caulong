@@ -40,7 +40,7 @@
 
   /* ── HÌNH NỀN ── Thay URL bên dưới để đổi ảnh nền */
   --bg-image: url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=1920&q=80');
-  --bg-overlay: rgba(6, 8, 16, 0.3); /* độ tối phủ lên ảnh — tăng số để tối hơn */
+  --bg-overlay: rgba(6, 8, 16, 0.2); /* độ tối phủ lên ảnh — tăng số để tối hơn */
 }
 
 /* ── BASE (Mobile first) ── */
@@ -50,8 +50,8 @@ body {
   /* Hình nền cố định, không cuộn theo trang */
   background-color: #060810;
   background-image: var(--bg-image);
-  background-size: cover;
-  background-position: center center;
+  background-size: var(--bg-size, cover);
+  background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
@@ -111,7 +111,7 @@ body::before {
 
 /* ── DESKTOP (≥ 768px) ── */
 @media (min-width: 768px) {
-  body { background-color:#08090f; flex-direction:row; background-position: calc(50% + calc(var(--sidebar-w) / 2)) center; } /* canh giữa vùng nội dung */
+  body { background-color:#08090f; flex-direction:row; background-position: calc(var(--bg-pos-x, 50%) + calc(var(--sidebar-w) / 2)) var(--bg-pos-y, 50%); } /* canh giữa vùng nội dung, hỗ trợ pan */
 
   /* Desktop wrapper */
   #desktop-layout {
@@ -473,6 +473,9 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div id="snav-bg-admin" style="display:none">
       <button onclick="triggerBgPicker()" class="snav-item" style="color:var(--muted)">
         <span class="snav-icon">🖼️</span> Đổi hình nền
+      </button>
+      <button onclick="openBgAdjust()" class="snav-item" style="color:var(--muted)">
+        <span class="snav-icon">🔍</span> Chỉnh vị trí
       </button>
       <button onclick="removeBgImage()" class="snav-item" style="color:var(--muted);font-size:12px">
         <span class="snav-icon">🗑️</span> Xoá hình nền
@@ -4499,17 +4502,19 @@ if ('serviceWorker' in navigator) {
   }, { passive: true });
 })();
 
-// ── HÌNH NỀN: lưu/load từ localStorage ──
 // ── HÌNH NỀN CHUNG (lưu Supabase — tất cả thành viên thấy) ──
+
+// State zoom/pan hiện tại
+let bgState = { zoom: 100, x: 50, y: 50 };
 
 function triggerBgPicker() {
   if (!me?.is_admin) return toast('Chỉ admin mới có quyền đổi hình nền', 'err');
   document.getElementById('bg-file-input').click();
 }
 
-// Nén ảnh xuống ~1280px, chất lượng 0.82 trước khi lưu
+// Nén ảnh xuống ~1920px, chất lượng 0.85
 function compressImage(file, callback) {
-  const MAX_W = 1280, QUALITY = 0.82;
+  const MAX_W = 1920, QUALITY = 0.85;
   const img = new Image();
   const url = URL.createObjectURL(file);
   img.onload = function() {
@@ -4528,29 +4533,29 @@ async function applyBgImage(input) {
   const file = input.files[0];
   if (!file) return;
   input.value = '';
-
   load(true);
   compressImage(file, async (base64) => {
     try {
-      // Lưu lên Supabase settings table (upsert theo key)
       const { error } = await db.from('settings').upsert(
-        { key: 'background_image', value: base64 },
-        { onConflict: 'key' }
+        { key: 'background_image', value: base64 }, { onConflict: 'key' }
       );
       if (error) throw error;
-
-      // Cache local + áp dụng ngay
       localStorage.setItem('cvBgImage', base64);
       setBgImage(base64);
+      // Reset zoom/pan về mặc định cho ảnh mới
+      bgState = { zoom: 100, x: 50, y: 50 };
+      applyBgTransform();
       load(false);
-      toast('✓ Đã đổi hình nền cho tất cả!', 'ok');
+      toast('✓ Đã đổi hình nền! Chỉnh vị trí bên dưới.', 'ok');
+      openBgAdjust(); // mở panel chỉnh ngay
     } catch(e) {
       load(false);
-      // Fallback: chỉ lưu local nếu Supabase lỗi
       localStorage.setItem('cvBgImage', base64);
       setBgImage(base64);
+      bgState = { zoom: 100, x: 50, y: 50 };
+      applyBgTransform();
+      openBgAdjust();
       toast('⚠️ Lưu local (cần tạo bảng settings)', 'err');
-      console.warn('settings table error:', e.message);
     }
   });
 }
@@ -4561,9 +4566,15 @@ async function removeBgImage() {
   load(true);
   try {
     await db.from('settings').delete().eq('key', 'background_image');
+    await db.from('settings').delete().eq('key', 'background_transform');
   } catch(e) {}
   localStorage.removeItem('cvBgImage');
+  localStorage.removeItem('cvBgTransform');
   document.documentElement.style.removeProperty('--bg-image');
+  document.documentElement.style.removeProperty('--bg-size');
+  document.documentElement.style.removeProperty('--bg-pos-x');
+  document.documentElement.style.removeProperty('--bg-pos-y');
+  closeBgAdjust();
   load(false);
   toast('Đã xoá hình nền', 'ok');
 }
@@ -4576,31 +4587,112 @@ function setBgImage(src) {
   }
 }
 
-// Load ảnh nền: cache local trước (hiện ngay), sau đó sync từ Supabase
-async function loadSavedBg() {
-  // Hiện cache ngay để không bị nhấp nháy
-  const cached = localStorage.getItem('cvBgImage');
-  if (cached) setBgImage(cached);
+// Áp dụng zoom/pan vào CSS variables
+function applyBgTransform() {
+  const { zoom, x, y } = bgState;
+  document.documentElement.style.setProperty('--bg-size', zoom + '%');
+  document.documentElement.style.setProperty('--bg-pos-x', x + '%');
+  document.documentElement.style.setProperty('--bg-pos-y', y + '%');
+}
 
-  // Sau đó lấy từ Supabase (sau khi db sẵn sàng)
+// ── Panel chỉnh zoom/pan ──
+function openBgAdjust() {
+  if (!me?.is_admin) return;
+  const panel = document.getElementById('bg-adjust-panel');
+  if (!panel) return;
+  // Sync sliders với state hiện tại
+  document.getElementById('bg-zoom').value = bgState.zoom;
+  document.getElementById('bg-x').value    = bgState.x;
+  document.getElementById('bg-y').value    = bgState.y;
+  document.getElementById('bg-zoom-val').textContent = bgState.zoom + '%';
+  document.getElementById('bg-x-val').textContent    = bgState.x + '%';
+  document.getElementById('bg-y-val').textContent    = bgState.y + '%';
+  panel.style.display = 'block';
+}
+
+function closeBgAdjust() {
+  const panel = document.getElementById('bg-adjust-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+function onBgZoom(v) {
+  bgState.zoom = +v;
+  document.getElementById('bg-zoom-val').textContent = v + '%';
+  applyBgTransform();
+}
+function onBgX(v) {
+  bgState.x = +v;
+  document.getElementById('bg-x-val').textContent = v + '%';
+  applyBgTransform();
+}
+function onBgY(v) {
+  bgState.y = +v;
+  document.getElementById('bg-y-val').textContent = v + '%';
+  applyBgTransform();
+}
+
+function resetBgAdjust() {
+  bgState = { zoom: 100, x: 50, y: 50 };
+  document.getElementById('bg-zoom').value = 100;
+  document.getElementById('bg-x').value    = 50;
+  document.getElementById('bg-y').value    = 50;
+  document.getElementById('bg-zoom-val').textContent = '100%';
+  document.getElementById('bg-x-val').textContent    = '50%';
+  document.getElementById('bg-y-val').textContent    = '50%';
+  applyBgTransform();
+}
+
+async function saveBgAdjust() {
+  const val = JSON.stringify(bgState);
+  localStorage.setItem('cvBgTransform', val);
+  try {
+    await db.from('settings').upsert(
+      { key: 'background_transform', value: val }, { onConflict: 'key' }
+    );
+    toast('✓ Đã lưu vị trí cho tất cả!', 'ok');
+  } catch(e) {
+    toast('✓ Đã lưu (chỉ thiết bị này)', 'ok');
+  }
+  closeBgAdjust();
+}
+
+// Load ảnh nền + transform: cache local trước (hiện ngay), sau đó sync Supabase
+async function loadSavedBg() {
+  const cached = localStorage.getItem('cvBgImage');
+  const cachedT = localStorage.getItem('cvBgTransform');
+  if (cached) setBgImage(cached);
+  if (cachedT) {
+    try { bgState = { ...bgState, ...JSON.parse(cachedT) }; } catch(e) {}
+    applyBgTransform();
+  }
+
   const tryLoad = async (retries = 10) => {
     if (!db) {
       if (retries > 0) setTimeout(() => tryLoad(retries - 1), 200);
       return;
     }
     try {
-      const { data } = await db.from('settings').select('value').eq('key', 'background_image').single();
-      if (data?.value) {
-        setBgImage(data.value);
-        localStorage.setItem('cvBgImage', data.value); // cập nhật cache
-      } else if (!data) {
-        // Không có ảnh trên server → xoá cache cũ
+      const [imgRow, tRow] = await Promise.all([
+        db.from('settings').select('value').eq('key', 'background_image').single(),
+        db.from('settings').select('value').eq('key', 'background_transform').single()
+      ]);
+      if (imgRow.data?.value) {
+        setBgImage(imgRow.data.value);
+        localStorage.setItem('cvBgImage', imgRow.data.value);
+      } else {
         localStorage.removeItem('cvBgImage');
         document.documentElement.style.removeProperty('--bg-image');
       }
-    } catch(e) { /* bảng chưa tạo → dùng cache local */ }
+      if (tRow.data?.value) {
+        try {
+          bgState = { ...bgState, ...JSON.parse(tRow.data.value) };
+          applyBgTransform();
+          localStorage.setItem('cvBgTransform', tRow.data.value);
+        } catch(e) {}
+      }
+    } catch(e) {}
   };
-  setTimeout(tryLoad, 800); // chờ db init xong
+  setTimeout(tryLoad, 800);
 }
 
 // Gọi init sau khi DOM và defer scripts sẵn sàng
@@ -4614,6 +4706,60 @@ if (document.readyState === 'loading') {
 <!-- GLOBAL BOTTOM NAV -->
 <!-- Hidden file input để đổi hình nền -->
 <input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="applyBgImage(this)">
+
+<!-- Panel chỉnh ảnh nền (zoom + pan) -->
+<div id="bg-adjust-panel" style="
+  display:none; position:fixed; bottom:100px; left:50%; transform:translateX(-50%);
+  background:rgba(15,17,24,0.96); backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.12); border-radius:20px;
+  padding:16px 20px; z-index:9999; min-width:320px; max-width:92vw;
+  box-shadow:0 8px 40px rgba(0,0,0,0.6);">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:700;color:#f0f2f7">🖼️ Chỉnh vị trí hình nền</div>
+    <button onclick="closeBgAdjust()" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;
+      color:#9ca3af;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
+  </div>
+
+  <!-- Zoom -->
+  <div style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:6px">
+      <span>Thu nhỏ / Phóng to</span><span id="bg-zoom-val">100%</span>
+    </div>
+    <input type="range" id="bg-zoom" min="30" max="300" value="100" step="1"
+      style="width:100%;accent-color:#c8ff47;cursor:pointer" oninput="onBgZoom(this.value)">
+  </div>
+
+  <!-- Pan X -->
+  <div style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:6px">
+      <span>◀ Trái / Phải ▶</span><span id="bg-x-val">50%</span>
+    </div>
+    <input type="range" id="bg-x" min="0" max="100" value="50" step="1"
+      style="width:100%;accent-color:#c8ff47;cursor:pointer" oninput="onBgX(this.value)">
+  </div>
+
+  <!-- Pan Y -->
+  <div style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:6px">
+      <span>▲ Lên / Xuống ▼</span><span id="bg-y-val">50%</span>
+    </div>
+    <input type="range" id="bg-y" min="0" max="100" value="50" step="1"
+      style="width:100%;accent-color:#c8ff47;cursor:pointer" oninput="onBgY(this.value)">
+  </div>
+
+  <div style="display:flex;gap:8px">
+    <button onclick="resetBgAdjust()" style="flex:1;padding:10px;border-radius:12px;
+      background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);
+      color:#9ca3af;font-family:'Be Vietnam Pro',sans-serif;font-size:13px;cursor:pointer">
+      ↺ Reset
+    </button>
+    <button onclick="saveBgAdjust()" style="flex:2;padding:10px;border-radius:12px;
+      background:#c8ff47;border:none;color:#080d00;
+      font-family:'Be Vietnam Pro',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
+      ✓ Lưu cho tất cả
+    </button>
+  </div>
+</div>
 
 <div class="bnav" id="global-bnav">
   <button class="ni" id="gnav-home" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
