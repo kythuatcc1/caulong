@@ -32,24 +32,45 @@
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
-  --bg:#0d0f14; --bg2:#161920; --bg3:#1e222c; --card:#1a1e28;
+  --bg:rgba(13,15,20,0.75); --bg2:rgba(22,25,32,0.92); --bg3:rgba(30,34,44,0.88); --card:rgba(26,30,40,0.82);
   --accent:#c8ff47; --accent2:#47d4ff; --accent3:#ff6b47;
   --text:#f0f2f7; --muted:#6b7280; --border:rgba(255,255,255,0.07);
   --green:#22c55e; --red:#ef4444; --r:14px;
   --sidebar-w: 220px;
+
+  /* ── HÌNH NỀN ── Thay URL bên dưới để đổi ảnh nền */
+  --bg-image: url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=1920&q=80');
+  --bg-overlay: rgba(6, 8, 16, 0.72); /* độ tối phủ lên ảnh — tăng số để tối hơn */
 }
 
 /* ── BASE (Mobile first) ── */
 body {
-  font-family:'Be Vietnam Pro',sans-serif; background:#060810;
+  font-family:'Be Vietnam Pro',sans-serif;
   color:var(--text); min-height:100vh;
+  /* Hình nền cố định, không cuộn theo trang */
+  background-color: #060810;
+  background-image: var(--bg-image);
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
-.page { width:100%; background:var(--bg); min-height:100vh; display:none; flex-direction:column; contain:layout style; }
+/* Lớp phủ tối lên trên ảnh nền — đặt trên body, dưới tất cả content */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  z-index: 0;
+  pointer-events: none;
+}
+/* Các trang trong suốt để thấy ảnh nền */
+.page { width:100%; background: transparent; min-height:100vh; display:none; flex-direction:column; contain:layout style; position: relative; z-index: 1; }
 .page.active { display:flex; }
 
 .hdr {
   padding:48px 20px 13px; display:flex; align-items:center; gap:12px;
-  background:var(--bg); position:sticky; top:0; z-index:20;
+  background:rgba(13,15,20,0.85); backdrop-filter:blur(12px); position:sticky; top:0; z-index:20;
   border-bottom:1px solid var(--border); overflow:visible;
 }
 .hdr-title { font-size:17px; font-weight:700; flex:1; }
@@ -58,7 +79,7 @@ body {
 /* Bottom nav (mobile) */
 .bnav {
   position:fixed; bottom:0; left:0; right:0;
-  background:rgba(20,23,30,0.97); backdrop-filter:blur(20px);
+  background:rgba(13,15,22,0.90); backdrop-filter:blur(20px);
   border-top:1px solid var(--border); display:flex;
   padding-bottom:max(env(safe-area-inset-bottom), 8px); z-index:100;
 }
@@ -449,6 +470,14 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </button>
   </div>
   <div id="sidebar-user">
+    <div id="snav-bg-admin" style="display:none">
+      <button onclick="triggerBgPicker()" class="snav-item" style="color:var(--muted)">
+        <span class="snav-icon">🖼️</span> Đổi hình nền
+      </button>
+      <button onclick="removeBgImage()" class="snav-item" style="color:var(--muted);font-size:12px">
+        <span class="snav-icon">🗑️</span> Xoá hình nền
+      </button>
+    </div>
     <button onclick="doExit()" class="snav-item" style="color:var(--muted)">
       <span class="snav-icon">🚪</span> Đổi SĐT
     </button>
@@ -549,6 +578,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         · Tổng: <span id="home-total-fund" style="font-weight:700;color:#a78bfa">—</span>
       </div>
     </div>
+    <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền">🖼️</button>
     <button class="btn-ghost" onclick="doExit()" style="padding:7px 12px;font-size:12px">Đổi SĐT</button>
   </div>
   <div class="content">
@@ -1338,6 +1368,9 @@ function initDesktopLayout() {
   if (me) {
     document.getElementById('sidebar-username').textContent = me.name;
     document.getElementById('snav-admin').style.display = me.is_admin ? '' : 'none';
+    document.getElementById('snav-bg-admin').style.display = me.is_admin ? '' : 'none';
+    const _homeBgBtn = document.getElementById('home-bg-btn');
+    if (_homeBgBtn) _homeBgBtn.style.display = me.is_admin ? '' : 'none';
   }
 }
 
@@ -4466,14 +4499,122 @@ if ('serviceWorker' in navigator) {
   }, { passive: true });
 })();
 
+// ── HÌNH NỀN: lưu/load từ localStorage ──
+// ── HÌNH NỀN CHUNG (lưu Supabase — tất cả thành viên thấy) ──
+
+function triggerBgPicker() {
+  if (!me?.is_admin) return toast('Chỉ admin mới có quyền đổi hình nền', 'err');
+  document.getElementById('bg-file-input').click();
+}
+
+// Nén ảnh xuống ~1280px, chất lượng 0.82 trước khi lưu
+function compressImage(file, callback) {
+  const MAX_W = 1280, QUALITY = 0.82;
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = function() {
+    let w = img.width, h = img.height;
+    if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    callback(canvas.toDataURL('image/jpeg', QUALITY));
+  };
+  img.src = url;
+}
+
+async function applyBgImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  load(true);
+  compressImage(file, async (base64) => {
+    try {
+      // Lưu lên Supabase settings table (upsert theo key)
+      const { error } = await db.from('settings').upsert(
+        { key: 'background_image', value: base64 },
+        { onConflict: 'key' }
+      );
+      if (error) throw error;
+
+      // Cache local + áp dụng ngay
+      localStorage.setItem('cvBgImage', base64);
+      setBgImage(base64);
+      load(false);
+      toast('✓ Đã đổi hình nền cho tất cả!', 'ok');
+    } catch(e) {
+      load(false);
+      // Fallback: chỉ lưu local nếu Supabase lỗi
+      localStorage.setItem('cvBgImage', base64);
+      setBgImage(base64);
+      toast('⚠️ Lưu local (cần tạo bảng settings)', 'err');
+      console.warn('settings table error:', e.message);
+    }
+  });
+}
+
+async function removeBgImage() {
+  if (!me?.is_admin) return toast('Chỉ admin mới có quyền xoá hình nền', 'err');
+  if (!confirm('Xoá hình nền?')) return;
+  load(true);
+  try {
+    await db.from('settings').delete().eq('key', 'background_image');
+  } catch(e) {}
+  localStorage.removeItem('cvBgImage');
+  document.documentElement.style.removeProperty('--bg-image');
+  load(false);
+  toast('Đã xoá hình nền', 'ok');
+}
+
+function setBgImage(src) {
+  if (src) {
+    document.documentElement.style.setProperty('--bg-image', `url('${src}')`);
+  } else {
+    document.documentElement.style.removeProperty('--bg-image');
+  }
+}
+
+// Load ảnh nền: cache local trước (hiện ngay), sau đó sync từ Supabase
+async function loadSavedBg() {
+  // Hiện cache ngay để không bị nhấp nháy
+  const cached = localStorage.getItem('cvBgImage');
+  if (cached) setBgImage(cached);
+
+  // Sau đó lấy từ Supabase (sau khi db sẵn sàng)
+  const tryLoad = async (retries = 10) => {
+    if (!db) {
+      if (retries > 0) setTimeout(() => tryLoad(retries - 1), 200);
+      return;
+    }
+    try {
+      const { data } = await db.from('settings').select('value').eq('key', 'background_image').single();
+      if (data?.value) {
+        setBgImage(data.value);
+        localStorage.setItem('cvBgImage', data.value); // cập nhật cache
+      } else if (!data) {
+        // Không có ảnh trên server → xoá cache cũ
+        localStorage.removeItem('cvBgImage');
+        document.documentElement.style.removeProperty('--bg-image');
+      }
+    } catch(e) { /* bảng chưa tạo → dùng cache local */ }
+  };
+  setTimeout(tryLoad, 800); // chờ db init xong
+}
+
 // Gọi init sau khi DOM và defer scripts sẵn sàng
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => { loadSavedBg(); init(); });
 } else {
+  loadSavedBg();
   init();
 }
 </script>
 <!-- GLOBAL BOTTOM NAV -->
+<!-- Hidden file input để đổi hình nền -->
+<input type="file" id="bg-file-input" accept="image/*" style="display:none" onchange="applyBgImage(this)">
+
 <div class="bnav" id="global-bnav">
   <button class="ni" id="gnav-home" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
   <button class="ni" id="gnav-fund" onclick="goPage('pg-fund')"><span class="ni-icon">🏦</span>Quỹ</button>
