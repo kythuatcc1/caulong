@@ -40,7 +40,7 @@
 
   /* ── HÌNH NỀN ── Thay URL bên dưới để đổi ảnh nền */
   --bg-image: url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=1920&q=80');
-  --bg-overlay: rgba(6, 8, 16, 0.2); /* độ tối phủ lên ảnh — tăng số để tối hơn */
+  --bg-overlay: rgba(6, 8, 16, 0.72); /* độ tối phủ lên ảnh — tăng số để tối hơn */
 }
 
 /* ── BASE (Mobile first) ── */
@@ -955,6 +955,18 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
   <div class="hdr">
     <div class="back-btn" onclick="goPage('pg-fund')">←</div>
     <div class="hdr-title">Quản lý quỹ</div>
+    <button onclick="openDiscountSettings()"
+      style="background:rgba(200,255,71,.1);border:1px solid rgba(200,255,71,.25);
+      border-radius:10px;color:var(--accent);padding:6px 10px;font-size:12px;
+      font-family:'Be Vietnam Pro',sans-serif;cursor:pointer;font-weight:700;white-space:nowrap">
+      ⚙️ Ưu đãi
+    </button>
+    <button onclick="triggerBgPicker()"
+      style="background:rgba(71,212,255,.1);border:1px solid rgba(71,212,255,.25);
+      border-radius:10px;color:var(--accent2);padding:6px 10px;font-size:12px;
+      font-family:'Be Vietnam Pro',sans-serif;cursor:pointer;font-weight:700;white-space:nowrap">
+      🖼️ Nền
+    </button>
   </div>
   <div class="content">
     <!-- Tổng quỹ -->
@@ -2056,12 +2068,21 @@ function renderSession() {
   }).join('') || '<div class="empty"><div class="empty-icon">👥</div><div>Chưa có thành viên nào</div></div>';
 
   // Nút thêm thành viên (admin only, buổi đang mở)
-  const addMemberBtn = me.is_admin && !isLocked ? `
-    <button onclick="openAddMemberSheet()"
-      style="margin-top:8px;width:100%;padding:11px;border-radius:12px;
-      background:rgba(71,212,255,.08);border:1px dashed rgba(71,212,255,.3);
-      color:var(--accent2);font-family:'Be Vietnam Pro',sans-serif;font-size:13px;
-      font-weight:700;cursor:pointer">+ Thêm thành viên từ danh sách</button>` : '';
+  const totalParticipants = confirmedCount + (curSession.guests||[]).length;
+  const slotsLeft = session.max_players - totalParticipants;
+  const isFull = slotsLeft <= 0;
+  const addMemberBtn = me.is_admin && !isLocked ? (
+    isFull
+      ? `<div style="margin-top:8px;width:100%;padding:11px;border-radius:12px;
+          background:rgba(239,68,68,.07);border:1px dashed rgba(239,68,68,.3);
+          color:var(--red);font-size:12px;text-align:center">
+          🔒 Đã đủ ${session.max_players}/${session.max_players} người — không thể thêm</div>`
+      : `<button onclick="openAddMemberSheet()"
+          style="margin-top:8px;width:100%;padding:11px;border-radius:12px;
+          background:rgba(71,212,255,.08);border:1px dashed rgba(71,212,255,.3);
+          color:var(--accent2);font-family:'Be Vietnam Pro',sans-serif;font-size:13px;
+          font-weight:700;cursor:pointer">+ Thêm thành viên (còn ${slotsLeft} chỗ)</button>`
+  ) : '';
 
   document.getElementById('vote-list').innerHTML = myBtn + memberRows + addMemberBtn;
 
@@ -2373,6 +2394,22 @@ function resetConfirmBtn() {
 
 async function adminConfirmAddMembers() {
   if (pendingAddIds.size === 0) return;
+
+  // Kiểm tra slots còn lại
+  const { session, votes, guests } = curSession;
+  const selfVoteCount = (votes||[]).filter(v => v.voter_id === v.target_id).length;
+  const guestCount    = (guests||[]).length;
+  const totalNow      = selfVoteCount + guestCount;
+  const slotsLeft     = (session.max_players || 10) - totalNow;
+  if (slotsLeft <= 0) {
+    toast(`Đã đủ ${session.max_players}/${session.max_players} người, không thể thêm!`, 'err');
+    return;
+  }
+  if (pendingAddIds.size > slotsLeft) {
+    toast(`Chỉ còn ${slotsLeft} chỗ trống, bạn đang chọn ${pendingAddIds.size} người!`, 'err');
+    return;
+  }
+
   const btn = document.getElementById('add-member-confirm-btn');
   btn.disabled = true;
   btn.innerHTML = '\u23f3 \u0110ang th\u00eam... <span id="add-member-confirm-count"></span>';
