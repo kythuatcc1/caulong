@@ -40,7 +40,7 @@
 
   /* ── HÌNH NỀN ── Thay URL bên dưới để đổi ảnh nền */
   --bg-image: url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=1920&q=80');
-  --bg-overlay: rgba(6, 8, 16, 0.3); /* độ tối phủ lên ảnh — tăng số để tối hơn */
+  --bg-overlay: rgba(6, 8, 16, 0.2); /* độ tối phủ lên ảnh — tăng số để tối hơn */
 }
 
 /* ── BASE (Mobile first) ── */
@@ -4516,7 +4516,7 @@ if ('serviceWorker' in navigator) {
 // Mặc định: 15k/người, tỷ lệ 8 vị trí
 const DEFAULT_DISCOUNT = {
   fundPerPerson: 15000,
-  rates: [20, 15, 15, 15, 10, 10, 8, 8]  // %
+  rates: [20, 15, 15, 15, 10, 10, 7.5, 7.5]  // % → tổng = 100%
 };
 let discountSettings = JSON.parse(JSON.stringify(DEFAULT_DISCOUNT));
 
