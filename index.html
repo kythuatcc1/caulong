@@ -40,7 +40,7 @@
 
   /* ── HÌNH NỀN ── Thay URL bên dưới để đổi ảnh nền */
   --bg-image: url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=1920&q=80');
-  --bg-overlay: rgba(6, 8, 16, 0.2); /* độ tối phủ lên ảnh — tăng số để tối hơn */
+  --bg-overlay: rgba(6, 8, 16, 0.72); /* độ tối phủ lên ảnh — tăng số để tối hơn */
 }
 
 /* ── BASE (Mobile first) ── */
@@ -955,20 +955,29 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
   <div class="hdr">
     <div class="back-btn" onclick="goPage('pg-fund')">←</div>
     <div class="hdr-title">Quản lý quỹ</div>
-    <button onclick="openDiscountSettings()"
-      style="background:rgba(200,255,71,.1);border:1px solid rgba(200,255,71,.25);
-      border-radius:10px;color:var(--accent);padding:6px 10px;font-size:12px;
-      font-family:'Be Vietnam Pro',sans-serif;cursor:pointer;font-weight:700;white-space:nowrap">
-      ⚙️ Ưu đãi
-    </button>
-    <button onclick="triggerBgPicker()"
-      style="background:rgba(71,212,255,.1);border:1px solid rgba(71,212,255,.25);
-      border-radius:10px;color:var(--accent2);padding:6px 10px;font-size:12px;
-      font-family:'Be Vietnam Pro',sans-serif;cursor:pointer;font-weight:700;white-space:nowrap">
-      🖼️ Nền
-    </button>
   </div>
   <div class="content">
+    <!-- Công cụ admin -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+      <button onclick="openDiscountSettings()"
+        style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
+        border-radius:14px;background:rgba(200,255,71,.08);border:1px solid rgba(200,255,71,.2);
+        color:var(--accent);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+        <span style="font-size:22px">⚙️</span>Cài đặt ưu đãi
+      </button>
+      <button onclick="triggerBgPicker()"
+        style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
+        border-radius:14px;background:rgba(71,212,255,.08);border:1px solid rgba(71,212,255,.2);
+        color:var(--accent2);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+        <span style="font-size:22px">🖼️</span>Đổi hình nền
+      </button>
+      <button onclick="openBgAdjust()"
+        style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
+        border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+        color:var(--muted);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
+        <span style="font-size:22px">🔍</span>Chỉnh vị trí
+      </button>
+    </div>
     <!-- Tổng quỹ -->
     <div class="fund-hero" style="background:linear-gradient(135deg,#0e1a20,#081018);border-color:rgba(71,212,255,.2)">
       <div style="color:var(--muted);font-size:12px;margin-bottom:4px">Tổng quỹ</div>
