@@ -592,7 +592,6 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       </div>
     </div>
     <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền">🖼️</button>
-    <button id="home-admin-btn" onclick="goPage('pg-admin')" class="btn-ghost" style="display:none;padding:7px 11px;font-size:12px;color:#a78bfa;border-color:rgba(167,139,250,.3);margin-right:4px">🔑 Admin</button>
     <button class="btn-ghost" onclick="doExit()" style="padding:7px 12px;font-size:12px">Đổi SĐT</button>
   </div>
   <div class="content">
@@ -1269,6 +1268,7 @@ function init() {
   if (isDesktop()) initDesktopLayout();
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   const _hab = document.getElementById('home-admin-btn'); if (_hab) _hab.style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? '' : 'none';
   goPageDirect('pg-home');
   showAdminTabIfNeeded();
   loadHome();
@@ -1285,6 +1285,7 @@ function init() {
         document.getElementById('home-name').textContent = me.name;
         document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   const _hab = document.getElementById('home-admin-btn'); if (_hab) _hab.style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? '' : 'none';
         setTimeout(checkAndShowLowFundAlert, 800);
       } else {
         me = null;
@@ -1329,6 +1330,7 @@ async function quickLogin() {
   if (isDesktop()) initDesktopLayout();
     document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   const _hab = document.getElementById('home-admin-btn'); if (_hab) _hab.style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? '' : 'none';
     toast(`Chào ${me.name}! 🏸`, 'ok');
     startAllRealtime();
     goPage('pg-home');
@@ -1375,9 +1377,9 @@ function goPage(id) {
   const gbnav = document.getElementById('global-bnav');
   if (gbnav) gbnav.style.display = noNav ? 'none' : '';
   // Highlight đúng nút
-  const navMap = { 'pg-home':'home', 'pg-create':'create', 'pg-fund':'fund', 'pg-admin':'fund' };
+  const navMap = { 'pg-home':'home', 'pg-create':'create', 'pg-fund':'fund', 'pg-admin':'admin' };
   const active = navMap[id] || '';
-  ['home','fund','create'].forEach(n => {
+  ['home','fund','create','admin'].forEach(n => {
     document.getElementById('gnav-'+n)?.classList.toggle('active', active===n);
     // legacy ids còn trong DOM (nếu có)
     document.getElementById('nav-'+n)?.classList.toggle('active', active===n);
@@ -1411,6 +1413,8 @@ function initDesktopLayout() {
     if (_homeBgBtn) _homeBgBtn.style.display = me.is_admin ? '' : 'none';
     const _homeAdminBtn = document.getElementById('home-admin-btn');
     if (_homeAdminBtn) _homeAdminBtn.style.display = me.is_admin ? '' : 'none';
+    const _gnavAdmin = document.getElementById('gnav-admin');
+    if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? '' : 'none';
   }
 }
 
@@ -1481,6 +1485,7 @@ async function doEnter() {
   // Hiện nút admin nếu là admin
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   const _hab = document.getElementById('home-admin-btn'); if (_hab) _hab.style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? '' : 'none';
   load(false);
   toast(`Chào ${me.name}! 🏸`,'ok');
   startAllRealtime();
@@ -3941,6 +3946,7 @@ async function loadFundPage() {
   document.getElementById('fund-status-text').textContent = statusText;
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   const _hab = document.getElementById('home-admin-btn'); if (_hab) _hab.style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? '' : 'none';
 
   // Hiển thị nợ buổi nếu có
   const debtEl = document.getElementById('fund-debt-list');
@@ -4939,6 +4945,7 @@ if (document.readyState === 'loading') {
   <button class="ni" id="gnav-home" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
   <button class="ni" id="gnav-fund" onclick="goPage('pg-fund')"><span class="ni-icon">🏦</span>Quỹ</button>
   <button class="ni" id="gnav-create" onclick="goPage('pg-create')"><span class="ni-icon">➕</span>Tạo buổi</button>
+  <button class="ni" id="gnav-admin" onclick="goPage('pg-admin')" style="display:none"><span class="ni-icon">🔑</span>Admin</button>
 </div>
 
 <!-- ══ PANEL CÀI ĐẶT TỶ LỆ ƯU ĐÃI ══ -->
