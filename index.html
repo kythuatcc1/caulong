@@ -40,19 +40,24 @@
 
   /* ── HÌNH NỀN ── Thay URL bên dưới để đổi ảnh nền */
   --bg-image: url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=1920&q=80');
-  --bg-overlay: rgba(6, 8, 16, 0.2); /* độ tối phủ lên ảnh — tăng số để tối hơn */
+  --bg-overlay: rgba(6, 8, 16, 0.72); /* độ tối phủ lên ảnh — tăng số để tối hơn */
 }
 
 /* ── BASE (Mobile first) ── */
 body {
   font-family:'Be Vietnam Pro',sans-serif;
   color:var(--text); min-height:100vh;
-  /* Hình nền cố định, không cuộn theo trang */
+  background-color: #060810;
+}
+/* ── Layer nền cố định (không cuộn) ── */
+#bg-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   background-color: #060810;
   background-image: var(--bg-image);
   background-size: var(--bg-size, cover);
   background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
-  background-attachment: fixed;
   background-repeat: no-repeat;
 }
 /* Lớp phủ tối lên trên ảnh nền — đặt trên body, dưới tất cả content */
@@ -111,7 +116,8 @@ body::before {
 
 /* ── DESKTOP (≥ 768px) ── */
 @media (min-width: 768px) {
-  body { background-color:#08090f; flex-direction:row; background-position: calc(var(--bg-pos-x, 50%) + calc(var(--sidebar-w) / 2)) var(--bg-pos-y, 50%); } /* canh giữa vùng nội dung, hỗ trợ pan */
+  body { background-color:#08090f; flex-direction:row; }
+  #bg-layer { background-position: calc(var(--bg-pos-x, 50%) + calc(var(--sidebar-w) / 2)) var(--bg-pos-y, 50%); }
 
   /* Desktop wrapper */
   #desktop-layout {
@@ -419,6 +425,7 @@ body::before {
 </style>
 </head>
 <body>
+<div id="bg-layer"></div>
 
 <!-- ▸ Thay 2 dòng này -->
 <script>
