@@ -102,8 +102,14 @@ body::before {
   flex:1; display:flex; flex-direction:column; align-items:center;
   padding:13px 0 10px; gap:5px; cursor:pointer; color:var(--muted);
   font-size:11px; font-weight:600; border:none; background:none; transition:color 0.2s;
+  position:relative;
 }
 .ni.active { color:var(--accent); }
+.ni.active::after {
+  content:''; position:absolute; top:0; left:25%; right:25%;
+  height:2px; border-radius:0 0 2px 2px;
+  background:var(--accent);
+}
 .ni-icon { font-size:26px; line-height:1; }
 
 /* Fixed overlays */
@@ -1306,6 +1312,7 @@ function init() {
   if (document.getElementById('sidebar-username')) document.getElementById('sidebar-username').textContent = me.name;
   if (isDesktop()) initDesktopLayout();
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
   goPageDirect('pg-home');
   showAdminTabIfNeeded();
   loadHome();
@@ -1321,6 +1328,7 @@ function init() {
         updateBalanceDisplay(me.fund_balance || 0);
         document.getElementById('home-name').textContent = me.name;
         document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
         setTimeout(checkAndShowLowFundAlert, 800);
       } else {
         me = null;
@@ -1364,6 +1372,7 @@ async function quickLogin() {
   if (document.getElementById('sidebar-username')) document.getElementById('sidebar-username').textContent = me.name;
   if (isDesktop()) initDesktopLayout();
     document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
     toast(`Chào ${me.name}! 🏸`, 'ok');
     startAllRealtime();
     goPage('pg-home');
@@ -1410,9 +1419,9 @@ function goPage(id) {
   const gbnav = document.getElementById('global-bnav');
   if (gbnav) gbnav.style.display = noNav ? 'none' : '';
   // Highlight đúng nút
-  const navMap = { 'pg-home':'home', 'pg-create':'create', 'pg-fund':'fund', 'pg-admin':'fund' };
+  const navMap = { 'pg-home':'home', 'pg-create':'create', 'pg-fund':'fund', 'pg-admin':'admin' };
   const active = navMap[id] || '';
-  ['home','fund','create'].forEach(n => {
+  ['home','fund','create','admin'].forEach(n => {
     document.getElementById('gnav-'+n)?.classList.toggle('active', active===n);
     // legacy ids còn trong DOM (nếu có)
     document.getElementById('nav-'+n)?.classList.toggle('active', active===n);
@@ -1444,6 +1453,8 @@ function initDesktopLayout() {
     document.getElementById('snav-bg-admin').style.display = me.is_admin ? '' : 'none';
     const _homeBgBtn = document.getElementById('home-bg-btn');
     if (_homeBgBtn) _homeBgBtn.style.display = me.is_admin ? '' : 'none';
+    const _gnavAdmin = document.getElementById('gnav-admin');
+    if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
   }
 }
 
@@ -1513,6 +1524,7 @@ async function doEnter() {
   if (isDesktop()) initDesktopLayout();
   // Hiện nút admin nếu là admin
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
   load(false);
   toast(`Chào ${me.name}! 🏸`,'ok');
   startAllRealtime();
@@ -4010,6 +4022,7 @@ async function loadFundPage() {
   }
   document.getElementById('fund-status-text').textContent = statusText;
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
+  const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
 
   // Hiển thị nợ buổi nếu có
   const debtEl = document.getElementById('fund-debt-list');
@@ -5078,6 +5091,7 @@ if (document.readyState === 'loading') {
   <button class="ni" id="gnav-home" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
   <button class="ni" id="gnav-fund" onclick="goPage('pg-fund')"><span class="ni-icon">🏦</span>Quỹ</button>
   <button class="ni" id="gnav-create" onclick="goPage('pg-create')"><span class="ni-icon">➕</span>Tạo buổi</button>
+  <button class="ni" id="gnav-admin" onclick="goPage('pg-admin')" style="display:none"><span class="ni-icon">🔑</span>Admin</button>
 </div>
 
 <!-- ══ PANEL CÀI ĐẶT TỶ LỆ ƯU ĐÃI ══ -->
