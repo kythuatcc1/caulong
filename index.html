@@ -29,6 +29,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Syne:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Syne:wght@700&display=swap" rel="stylesheet"></noscript>
+<script>
+// Load Google Maps Places API
+(function(){
+  if(typeof GMAPS_KEY==='undefined'||GMAPS_KEY==='YOUR_GOOGLE_MAPS_API_KEY') return;
+  var s=document.createElement('script');
+  s.src='https://maps.googleapis.com/maps/api/js?key='+GMAPS_KEY+'&libraries=places&language=vi&region=VN&callback=initGMapsPlaces';
+  s.async=true; s.defer=true;
+  document.head.appendChild(s);
+})();
+</script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -70,7 +80,7 @@ body::before {
   pointer-events: none;
 }
 /* Các trang trong suốt để thấy ảnh nền */
-.page { width:100%; background: transparent; min-height:100vh; display:none; flex-direction:column; contain:layout style; position: relative; z-index: 1; }
+.page { width:100%; background: transparent; min-height:100vh; display:none; flex-direction:column; position: relative; z-index: 1; }
 .page.active { display:flex; }
 
 .hdr {
@@ -98,6 +108,14 @@ body::before {
 
 /* Fixed overlays */
 .overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:500; }
+/* Google Maps autocomplete dropdown */
+.pac-container { z-index:99999!important; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  background:#1a1e28; box-shadow:0 8px 32px rgba(0,0,0,.6);
+  font-family:'Be Vietnam Pro',sans-serif; margin-top:4px; }
+.pac-item { padding:10px 14px; color:#f0f2f7; border-top:1px solid rgba(255,255,255,.05); cursor:pointer; font-size:13px; }
+.pac-item:hover,.pac-item-selected { background:rgba(200,255,71,.08); }
+.pac-item-query { color:#c8ff47; font-weight:600; }
+.pac-matched { color:#47d4ff; } .pac-icon { filter:invert(1) brightness(.6); }
 .overlay.show { display:flex; }
 .sheet-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:300; display:none; align-items:flex-end; justify-content:center; }
 .sheet-bg.show { display:flex; }
@@ -432,6 +450,9 @@ body::before {
 const SUPA_URL = 'https://sbyklnmmpicgtjgiybrk.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNieWtsbm1tcGljZ3RqZ2l5YnJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDg0MTMsImV4cCI6MjA4OTUyNDQxM30.MNsdqKs6CuMSNL4aXlt-COhlOWf_C4YSgVvN5P2LvYo';
 
+// ── Google Maps Places API Key ──
+const GMAPS_KEY = 'AIzaSyDvHWAOu4atHoyDuISmm8Q7o0cxG2qDoSE';
+
 // ── Cấu hình ngân hàng nhận tiền quỹ ──
 // Thay bằng thông tin tài khoản thực của bạn
 const BANK_ID      = 'BIDV';
@@ -619,7 +640,17 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div class="fg"><label class="fl">Ngày</label><input class="fi" id="c-date" type="date"></div>
       <div class="fg"><label class="fl">Giờ</label><input class="fi" id="c-time" type="time" value="17:00"></div>
     </div>
-    <div class="fg"><label class="fl">Địa điểm</label><input class="fi" id="c-loc" type="text" placeholder="Tên sân · Quận/Huyện"></div>
+    <div class="fg">
+      <label class="fl">Địa điểm</label>
+      <div style="position:relative">
+        <input class="fi" id="c-loc" type="text" placeholder="🔍 Gõ tên sân để tìm..." autocomplete="off" style="padding-right:42px">
+        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none;opacity:.6">📍</span>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">Sân số <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(tuỳ chọn)</span></label>
+      <input class="fi" id="c-court" type="text" placeholder="VD: 3  hoặc  A5">
+    </div>
     <div class="row2">
       <div class="fg"><label class="fl">Phí sân (đ)</label><input class="fi" id="c-fee" type="number" placeholder="300000"></div>
       <div class="fg"><label class="fl">Số người tối đa</label><input class="fi" id="c-max" type="number" value="10"></div>
@@ -656,6 +687,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div class="mgrid">
         <div class="mi"><span class="ml">Ngày & giờ</span><span class="mv" id="s-dt">—</span></div>
         <div class="mi"><span class="ml">Địa điểm</span><span class="mv" id="s-loc">—</span></div>
+        <div class="mi" id="s-court-wrap" style="display:none"><span class="ml">Sân số</span><span class="mv" id="s-court" style="color:var(--accent);font-weight:700">—</span></div>
         <div class="mi"><span class="ml">Phí sân</span><span class="mv" id="s-fee" style="color:var(--accent2)">—</span></div>
         <div class="mi"><span class="ml">Tối đa</span><span class="mv" id="s-max">—</span></div>
         <div class="mi" id="s-total-wrap" style="display:none"><span class="ml">Tổng chi phí</span><span class="mv" id="s-total" style="color:var(--accent);font-weight:800">—</span></div>
@@ -783,7 +815,14 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       </div>
     </div>
     <div class="fg"><label class="fl">Địa điểm</label>
-      <input class="fi" id="edit-loc" placeholder="Tên sân · Quận/Huyện">
+      <div style="position:relative">
+        <input class="fi" id="edit-loc" type="text" placeholder="🔍 Gõ tên sân để tìm..." autocomplete="off" style="padding-right:42px">
+        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none;opacity:.6">📍</span>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">Sân số <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(tuỳ chọn)</span></label>
+      <input class="fi" id="edit-court" type="text" placeholder="VD: 3  hoặc  A5">
     </div>
     <div class="row2">
       <div class="fg"><label class="fl">Phí sân (đ)</label>
@@ -1799,8 +1838,19 @@ function renderSessionCard(s, confirmedCount=0, totalCount=0, iVoted=false, gues
               background:${badgeBg};color:${badgeColor}">${badgeText}</span>
             <span style="font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap">Host: ${s.profiles?.name||'?'}</span>
           </div>
-          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;
-            white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.location || s.title}</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:8px;
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px">
+            ${locBuildHref(s.location)
+              ? `<a href="${locBuildHref(s.location)}" target="_blank" rel="noopener"
+                  onclick="event.stopPropagation()"
+                  style="color:var(--accent2);text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+                  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">
+                  📍 ${locParseName(s.location)||s.title}
+                </a>`
+              : `<span style="color:var(--text)">${locParseName(s.location)||s.title}</span>`
+            }
+            ${locParseCourt(s.location) ? '<span style="flex-shrink:0;font-size:11px;font-weight:600;background:rgba(200,255,71,.15);color:var(--accent);border-radius:8px;padding:1px 7px">Sân ' + locParseCourt(s.location) + '</span>' : ''}
+          </div>
           <div style="height:1px;background:var(--border);margin-bottom:8px"></div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             ${memberBadge}
@@ -1821,10 +1871,13 @@ function renderSessionCard(s, confirmedCount=0, totalCount=0, iVoted=false, gues
 // TẠO BUỔI
 // ═══════════════════════════════════════
 async function doCreate() {
-  const title = document.getElementById('c-title').value.trim();
-  const date  = document.getElementById('c-date').value;
-  const time  = document.getElementById('c-time').value;
-  const loc   = document.getElementById('c-loc').value.trim();
+  const title  = document.getElementById('c-title').value.trim();
+  const date   = document.getElementById('c-date').value;
+  const time   = document.getElementById('c-time').value;
+  const locName  = document.getElementById('c-loc').value.trim();
+  const courtNum = document.getElementById('c-court').value.trim();
+  const pid    = gmapsPlaceIds['c-loc'] || '';
+  const locSave = locName + (pid ? '||'+pid : '') + (courtNum ? '||'+courtNum : '');
   const fee   = parseFloat(document.getElementById('c-fee').value)||0;
   const max   = parseInt(document.getElementById('c-max').value)||10;
   if (!title) return toast('Nhập tên buổi chơi','err');
@@ -1832,13 +1885,13 @@ async function doCreate() {
   const code = genCode();
   const scheduled_at = date&&time ? new Date(`${date}T${time}`).toISOString() : null;
   const { data: session, error } = await db.from('sessions').insert({
-    title, code, host_id:me.id, scheduled_at, location:loc, court_fee:fee, max_players:max, status:'voting'
+    title, code, host_id:me.id, scheduled_at, location:locSave, court_fee:fee, max_players:max, status:'voting'
   }).select().single();
   if (error) { load(false); return toast(error.message,'err'); }
-  // Host tự join
+  delete gmapsPlaceIds['c-loc'];
   await db.from('session_members').insert({session_id:session.id, user_id:me.id});
   load(false);
-  ['c-title','c-date','c-loc','c-fee'].forEach(id=>document.getElementById(id).value='');
+  ['c-title','c-date','c-loc','c-court','c-fee'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('c-max').value='10';
   toast('Tạo buổi thành công! Đang hiển thị cho mọi người 🎉','ok');
   openSession(session.id);
@@ -1937,7 +1990,26 @@ function renderSession() {
   document.getElementById('s-hdr').textContent      = session.title;
   document.getElementById('s-title').textContent    = session.title;
   document.getElementById('s-dt').textContent       = session.scheduled_at ? fmtD(session.scheduled_at) : '—';
-  document.getElementById('s-loc').textContent      = session.location || '—';
+  // Location: hiện tên + link Maps
+  const _slEl = document.getElementById('s-loc');
+  const _slName = locParseName(session.location);
+  const _slHref = locBuildHref(session.location);
+  if (_slName && _slHref) {
+    _slEl.innerHTML = `<a href="${_slHref}" target="_blank" rel="noopener"
+      style="color:var(--accent2);text-decoration:none;border-bottom:1px dashed rgba(71,212,255,.4);cursor:pointer">
+      📍 ${_slName}</a>`;
+  } else {
+    _slEl.textContent = _slName || '—';
+  }
+  // Sân số
+  const _courtNum = locParseCourt(session.location);
+  const _courtWrap = document.getElementById('s-court-wrap');
+  if (_courtNum) {
+    document.getElementById('s-court').textContent = 'Sân ' + _courtNum;
+    _courtWrap.style.display = '';
+  } else {
+    _courtWrap.style.display = 'none';
+  }
   document.getElementById('s-fee').textContent      = fmt(session.court_fee);
   document.getElementById('s-max').textContent      = session.max_players + ' người';
   document.getElementById('s-host-lbl').textContent = `Host: ${session.profiles?.name||'?'}`;
@@ -2202,9 +2274,11 @@ async function doVote() {
 // CHỈNH SỬA BUỔI (host only)
 // ═══════════════════════════════════════
 function openEditSheet() {
+  reattachPlacesAC();
   const { session } = curSession;
   document.getElementById('edit-title').value = session.title || '';
-  document.getElementById('edit-loc').value   = session.location || '';
+  document.getElementById('edit-loc').value   = locParseName(session.location);
+  document.getElementById('edit-court').value = locParseCourt(session.location);
   document.getElementById('edit-fee').value   = session.court_fee || '';
   document.getElementById('edit-max').value   = session.max_players || 10;
 
@@ -2226,8 +2300,11 @@ function closeEditSheet(e) {
 }
 
 async function doEditSession() {
-  const title = document.getElementById('edit-title').value.trim();
-  const loc   = document.getElementById('edit-loc').value.trim();
+  const title    = document.getElementById('edit-title').value.trim();
+  const locName  = document.getElementById('edit-loc').value.trim();
+  const courtNum = document.getElementById('edit-court').value.trim();
+  const pid      = gmapsPlaceIds['edit-loc'] || locParsePid(curSession.session.location);
+  const locSave  = locName + (pid ? '||'+pid : '') + (courtNum ? '||'+courtNum : '');
   const fee   = parseFloat(document.getElementById('edit-fee').value) || 0;
   const max   = parseInt(document.getElementById('edit-max').value) || 10;
   const date  = document.getElementById('edit-date').value;
@@ -2238,14 +2315,14 @@ async function doEditSession() {
 
   load(true);
   const { error } = await db.from('sessions').update({
-    title, location: loc, court_fee: fee, max_players: max, scheduled_at
+    title, location: locSave, court_fee: fee, max_players: max, scheduled_at
   }).eq('id', curSession.session.id);
   load(false);
+  delete gmapsPlaceIds['edit-loc'];
 
   if (error) return toast(error.message, 'err');
 
-  // Cập nhật local state ngay
-  curSession.session = { ...curSession.session, title, location: loc, court_fee: fee, max_players: max, scheduled_at };
+  curSession.session = { ...curSession.session, title, location: locSave, court_fee: fee, max_players: max, scheduled_at };
   closeEditSheet({});
   toast('✓ Đã cập nhật thông tin buổi', 'ok');
   renderSession();
@@ -4860,10 +4937,80 @@ async function loadSavedBg() {
   setTimeout(tryLoad, 800);
 }
 
+// ── Helpers parse location "name||place_id||court_num" ──
+function locParseName(raw)  { return (raw||'').split('||')[0]; }
+function locParsePid(raw)   {
+  var p=(raw||'').split('||');
+  // place_id thường bắt đầu bằng 'ChIJ' hoặc ký tự chữ dài, không phải số ngắn
+  if(p.length>=2 && p[1] && !p[1].match(/^\d{1,3}$/) && !p[1].match(/^[A-Za-z]\d$/)) return p[1];
+  return '';
+}
+function locParseCourt(raw) {
+  var p=(raw||'').split('||');
+  return p.length>=2 ? p[p.length-1] : '';
+}
+function locBuildHref(raw) {
+  var pid=locParsePid(raw), name=locParseName(raw);
+  if(pid) return 'https://www.google.com/maps/place/?q=place_id:'+pid;
+  if(name) return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(name);
+  return '';
+}
+
+// ── Google Maps Places Autocomplete ──
+var gmapsPlaceIds   = {};
+var gmapsACAttached = {};
+
+function initGMapsPlaces() {
+  console.log('[Maps] Places API loaded OK');
+  enableLazyAC('c-loc');
+  enableLazyAC('edit-loc');
+}
+
+function enableLazyAC(inputId) {
+  var input = document.getElementById(inputId);
+  if(!input) return;
+  if(window.google&&window.google.maps&&window.google.maps.places){attachPlacesAC(inputId);return;}
+  if(!gmapsACAttached['__l_'+inputId]){
+    gmapsACAttached['__l_'+inputId]=true;
+    input.addEventListener('focus',function(){attachPlacesAC(inputId);});
+  }
+  var tries=0,poll=setInterval(function(){
+    tries++;
+    if(window.google&&window.google.maps&&window.google.maps.places){clearInterval(poll);attachPlacesAC(inputId);}
+    else if(tries>20){clearInterval(poll);}
+  },500);
+}
+
+function attachPlacesAC(inputId) {
+  if(gmapsACAttached[inputId]) return;
+  var input=document.getElementById(inputId);
+  if(!input||!window.google||!window.google.maps||!window.google.maps.places) return;
+  gmapsACAttached[inputId]=true;
+  var ac=new google.maps.places.Autocomplete(input,{
+    types:['establishment','geocode'],
+    componentRestrictions:{country:'vn'},
+    fields:['name','formatted_address','place_id']
+  });
+  ac.addListener('place_changed',function(){
+    var place=ac.getPlace();
+    if(!place.place_id) return;
+    gmapsPlaceIds[inputId]=place.place_id;
+    input.value=place.name||place.formatted_address||input.value;
+  });
+  input.addEventListener('input',function(){delete gmapsPlaceIds[inputId];});
+}
+
+function reattachPlacesAC() {
+  delete gmapsACAttached['edit-loc'];
+  delete gmapsACAttached['__l_edit-loc'];
+  setTimeout(function(){enableLazyAC('edit-loc');},400);
+}
+
 // Gọi init sau khi DOM và defer scripts sẵn sàng
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => { loadSavedBg(); loadDiscountSettings(); init(); });
+  document.addEventListener('DOMContentLoaded', () => { enableLazyAC('c-loc'); loadSavedBg(); loadDiscountSettings(); init(); });
 } else {
+  enableLazyAC('c-loc');
   loadSavedBg();
   loadDiscountSettings();
   init();
