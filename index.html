@@ -3083,34 +3083,57 @@ async function doClose() {
 
   // ── Tính tiền từng người (logic ưu đãi bình chọn) ─────────────
   //
-  //  A  = 15.000đ × tổng số tài khoản CLB     (pool ưu đãi — trích từ tất cả thành viên CLB)
-  //  B  = tổng chi phí ÷ tổng số người tham gia (phí bình quân buổi đó)
-  //  C₀ = tỷ lệ vị trí × A                   (ưu đãi theo thứ tự bình chọn)
-  //  Dư = A − Σ(C₀ của tất cả)               (phần A chưa dùng — khi < 8 người bình chọn)
-  //  Ex = Dư ÷ tổng số người tham gia         (chia đều phần dư cho người tham gia buổi)
-  //  C  = C₀ + Ex                             (ưu đãi cuối)
-  //  Chi phí cuối = max(0, B − C)
+  //  A        = fundPerPerson × tổng thành viên CLB  (pool ưu đãi)
+  //  courtShare = phí sân ÷ tổng số người tham gia   (chia đều cho tất cả)
+  //  expShare   = chi phí phụ của từng người          (theo split_type: all/selected/personal)
+  //  base     = courtShare + expShare                 (phí thực của từng người)
+  //  C₀       = tỷ lệ vị trí × A                    (ưu đãi theo thứ tự bình chọn)
+  //  Dư       = A − Σ(C₀ của tất cả)                (phần A chưa dùng)
+  //  Ex       = Dư ÷ tổng số người tham gia          (chia đều phần dư)
+  //  C        = C₀ + Ex                              (ưu đãi cuối)
+  //  Chi phí cuối = base − C
   //
-  //  Tỷ lệ theo thứ tự bình chọn:
-  //    1 (host sân) = 20%
-  //    2, 3, 4      = 15%
-  //    5, 6         = 10%
-  //    7, 8         =  8%   → tổng = 100% → không còn phần dư
-  //    9+           =  0%
-  //
-  //  Khách vãng lai: chỉ nhận phần chia đều phần dư (nếu có)
+  //  LƯU Ý: Phí sân chia đều. Chi phí phụ (nước, cầu...) chỉ chia cho người được chọn.
+  //  Khách vãng lai: chỉ nhận phần chia đều phần dư (không có ưu đãi vị trí)
   // ─────────────────────────────────────────────────────────────
   const DISCOUNT_RATES = discountSettings.rates.map(r => r / 100);
   const FUND_PER_PERSON = discountSettings.fundPerPerson;
 
-  // Tổng chi phí toàn buổi (phí sân + mọi khoản phụ)
+  // Tổng chi phí toàn buổi (chỉ dùng cho rounding adjustment)
   const totalAllExpenses = (expenses||[]).reduce((s, e) => s + (e.amount || 0), 0);
   const totalCost = session.court_fee + totalAllExpenses;
 
-  // A: pool ưu đãi = 15k × tổng thành viên CLB (không phải số người tham gia buổi)
-  // B: phí bình quân = tổng chi phí ÷ số người tham gia buổi đó
+  // A: pool ưu đãi
   const A = FUND_PER_PERSON * totalClubMembers;
-  const B = totalPpl > 0 ? totalCost / totalPpl : 0;
+
+  // Phí sân chia đều cho tất cả người tham gia
+  const courtShare = totalPpl > 0 ? session.court_fee / totalPpl : 0;
+
+  // Chi phí phụ: tính riêng cho từng người theo split_type (giống renderExpSummary)
+  const memberExpMap = {}; // user_id → tổng chi phí phụ
+  const guestExpMap  = {}; // guest_id → tổng chi phí phụ
+  picked.forEach(m => { memberExpMap[m.user_id] = 0; });
+  guests.forEach(g => { guestExpMap[g.id]        = 0; });
+
+  (expenses||[]).forEach(e => {
+    const assigns  = e.expense_assignments || [];
+    const gAssigns = e.guest_expense_assignments || [];
+    if (e.split_type === 'all') {
+      const share = totalPpl > 0 ? e.amount / totalPpl : 0;
+      picked.forEach(m => { memberExpMap[m.user_id] += share; });
+      guests.forEach(g => { guestExpMap[g.id]        += share; });
+    } else if (e.split_type === 'selected') {
+      const totalSel = assigns.length + gAssigns.length;
+      if (totalSel > 0) {
+        const share = e.amount / totalSel;
+        assigns.forEach(a  => { if (memberExpMap[a.user_id]  !== undefined) memberExpMap[a.user_id]  += share; });
+        gAssigns.forEach(a => { if (guestExpMap[a.guest_id]  !== undefined) guestExpMap[a.guest_id]  += share; });
+      }
+    } else { // personal
+      assigns.forEach(a  => { if (memberExpMap[a.user_id]  !== undefined) memberExpMap[a.user_id]  += a.amount; });
+      gAssigns.forEach(a => { if (guestExpMap[a.guest_id]  !== undefined) guestExpMap[a.guest_id]  += a.amount; });
+    }
+  });
 
   // Xác định thứ tự bình chọn (pickedVotes đã được sắp: host trước, rồi theo thời gian)
   // voteOrderMap: user_id → vị trí 1-based
@@ -3133,12 +3156,17 @@ async function doClose() {
 
   // Tính member payments
   const memberPayData = memberRates.map(({ m, position, rate, C0 }) => {
-    const C           = C0 + extraEach;                // ưu đãi cuối = vị trí + phần dư bình quân
-    const finalAmount = Math.round(B - C);  // có thể âm → hoàn lại vào quỹ
-    const C0r = Math.round(C0);
-    const Exr = Math.round(extraEach);
+    const C            = C0 + extraEach;               // ưu đãi cuối = vị trí + phần dư bình quân
+    const expShare     = memberExpMap[m.user_id] || 0; // chi phí phụ riêng của người này
+    const baseAmount   = courtShare + expShare;         // phí sân (chia đều) + chi phí phụ của họ
+    const finalAmount  = Math.round(baseAmount - C);   // có thể âm → hoàn lại vào quỹ
+    const C0r          = Math.round(C0);
+    const Exr          = Math.round(extraEach);
+    const courtShareR  = Math.round(courtShare);
+    const expShareR    = Math.round(expShare);
     const breakdown = [
-      { name: `Phí bình quân (${fmt(Math.round(totalCost))} ÷ ${totalPpl} người)`, amount: Math.round(B) },
+      { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareR },
+      ...(expShareR > 0 ? [{ name: `Chi phí phụ`, amount: expShareR }] : []),
       ...(C0r > 0 ? [{ name: `Ưu đãi vị trí ${position} (${Math.round(rate * 100)}% × pool ${fmt(A)})`, amount: -C0r }] : []),
       ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${totalPpl} người`, amount: -Exr }] : [])
     ];
@@ -3147,11 +3175,16 @@ async function doClose() {
 
   // Tính guest payments — chỉ nhận phần chia đều phần dư (không có ưu đãi vị trí)
   const guestPayData = guests.map(g => {
-    const C           = extraEach;
-    const finalAmount = Math.round(B - C);  // có thể âm → hoàn lại vào quỹ
-    const Exr = Math.round(extraEach);
+    const C            = extraEach;
+    const expShare     = guestExpMap[g.id] || 0;
+    const baseAmount   = courtShare + expShare;
+    const finalAmount  = Math.round(baseAmount - C);   // có thể âm → hoàn lại vào quỹ
+    const Exr          = Math.round(extraEach);
+    const courtShareR  = Math.round(courtShare);
+    const expShareR    = Math.round(expShare);
     const breakdown = [
-      { name: `Phí bình quân (${fmt(Math.round(totalCost))} ÷ ${totalPpl} người)`, amount: Math.round(B) },
+      { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareR },
+      ...(expShareR > 0 ? [{ name: `Chi phí phụ`, amount: expShareR }] : []),
       ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${totalPpl} người`, amount: -Exr }] : [])
     ];
     return { session_id: session.id, guest_id: g.id, amount: finalAmount, breakdown, is_paid: false };
