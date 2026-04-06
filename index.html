@@ -1322,6 +1322,14 @@ function init() {
   db.from('profiles').select('*').eq('id', parsed.id).single()
     .then(({ data }) => {
       if (data) {
+        if (data.is_banned) {
+          me = null;
+          localStorage.removeItem('cvUser');
+          sessionStorage.removeItem('cvUser');
+          toast('Tài khoản của bạn đã bị khóa. Liên hệ admin.', 'err');
+          goPageDirect('pg-auth');
+          return;
+        }
         me = data;
         if (isPersisted) localStorage.setItem('cvUser', JSON.stringify(me));
         else sessionStorage.setItem('cvUser', JSON.stringify(me));
@@ -1364,6 +1372,13 @@ async function quickLogin() {
   const { data } = await db.from('profiles').select('*').eq('id', parsed.id).single();
   load(false);
   if (data) {
+    if (data.is_banned) {
+      localStorage.removeItem('cvUser');
+      sessionStorage.removeItem('cvUser');
+      load(false);
+      toast('Tài khoản của bạn đã bị khóa. Liên hệ admin.', 'err');
+      return goPageDirect('pg-auth');
+    }
     me = data;
     if (isPersisted) localStorage.setItem('cvUser', JSON.stringify(me));
     else sessionStorage.setItem('cvUser', JSON.stringify(me));
@@ -1508,8 +1523,15 @@ async function doEnter() {
     load(false);
     return toast('Số điện thoại chưa được đăng ký. Liên hệ quản trị viên để được thêm vào nhóm.','err');
   }
-  if (existing.name !== name) await db.from('profiles').update({name}).eq('id',existing.id);
-  me = {...existing, name};
+  if (existing.is_banned) {
+    load(false);
+    return toast('Tài khoản của bạn đã bị khóa. Liên hệ admin.', 'err');
+  }
+  if (existing.name.trim().toLowerCase() !== name.toLowerCase()) {
+    load(false);
+    return toast('Tên không khớp với số điện thoại. Vui lòng kiểm tra lại.', 'err');
+  }
+  me = {...existing};
   // Ghi nhớ đăng nhập nếu checkbox được tick
   const remember = document.getElementById('remember-me')?.checked !== false;
   if (remember) {
