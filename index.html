@@ -37,291 +37,474 @@
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Syne:wght@700&display=swap" rel="stylesheet"></noscript>
 
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── iOS 26 Liquid Glass Design Tokens ── */
 :root {
-  --bg:rgba(13,15,20,0.75); --bg2:rgba(22,25,32,0.92); --bg3:rgba(30,34,44,0.88); --card:rgba(26,30,40,0.82);
+  /* Glass surfaces */
+  --glass-1: rgba(255,255,255,0.07);
+  --glass-2: rgba(255,255,255,0.11);
+  --glass-3: rgba(255,255,255,0.16);
+  --glass-dark: rgba(0,0,0,0.28);
+  --glass-border: rgba(255,255,255,0.14);
+  --glass-border-hi: rgba(255,255,255,0.22);
+
+  /* Accents */
   --accent:#c8ff47; --accent2:#47d4ff; --accent3:#ff6b47;
-  --text:#f0f2f7; --muted:#6b7280; --border:rgba(255,255,255,0.07);
-  --green:#22c55e; --red:#ef4444; --r:14px;
-  --sidebar-w: 220px;
+  --green:#30d158; --red:#ff453a; --yellow:#ffd60a; --purple:#bf5af2;
 
-  /* ── HÌNH NỀN ── Thay URL bên dưới để đổi ảnh nền */
+  /* Text */
+  --text:#f5f5f7; --text2:rgba(245,245,247,0.62); --text3:rgba(245,245,247,0.38);
+
+  /* Legacy compat */
+  --bg:rgba(13,15,20,0.75); --bg2:rgba(22,25,32,0.92); --bg3:rgba(30,34,44,0.88);
+  --card: rgba(255,255,255,0.07);
+  --muted:rgba(245,245,247,0.45);
+  --border: rgba(255,255,255,0.12);
+
+  /* Radius */
+  --r: 18px;
+  --r-sm: 12px;
+  --r-pill: 50px;
+  --r-sheet: 26px;
+
+  /* Blur */
+  --blur-sm: blur(16px);
+  --blur-md: blur(28px);
+  --blur-lg: blur(48px);
+
+  --sidebar-w: 224px;
   --bg-image: url('https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=1920&q=80');
-  --bg-overlay: rgba(6, 8, 16, 0.2); /* độ tối phủ lên ảnh — tăng số để tối hơn */
+  --bg-overlay: rgba(4,6,14,0.30);
 }
 
-/* ── BASE (Mobile first) ── */
+/* ── Base ── */
 body {
-  font-family:'Be Vietnam Pro',sans-serif;
-  color:var(--text); min-height:100vh;
+  font-family: 'Be Vietnam Pro', sans-serif;
+  color: var(--text);
+  min-height: 100vh;
   background-color: #060810;
+  -webkit-font-smoothing: antialiased;
 }
-/* ── Layer nền cố định (không cuộn) ── */
+
 #bg-layer {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
+  position: fixed; inset: 0; z-index: -1;
   background-color: #060810;
   background-image: var(--bg-image);
   background-size: var(--bg-size, cover);
-  background-position: var(--bg-pos-x, 50%) var(--bg-pos-y, 50%);
+  background-position: var(--bg-pos-x,50%) var(--bg-pos-y,50%);
   background-repeat: no-repeat;
 }
-/* Lớp phủ tối lên trên ảnh nền — đặt trên body, dưới tất cả content */
 body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: var(--bg-overlay);
-  z-index: 0;
-  pointer-events: none;
+  content:''; position:fixed; inset:0;
+  background:var(--bg-overlay); z-index:0; pointer-events:none;
 }
-/* Các trang trong suốt để thấy ảnh nền */
-.page { width:100%; background: transparent; min-height:100vh; display:none; flex-direction:column; position: relative; z-index: 1; }
+
+.page {
+  width:100%; background:transparent; min-height:100vh;
+  display:none; flex-direction:column; position:relative; z-index:1;
+}
 .page.active { display:flex; }
 
+/* ── iOS 26 Header — floating glass pill ── */
 .hdr {
-  padding:48px 20px 13px; display:flex; align-items:center; gap:12px;
-  background:rgba(13,15,20,0.85); backdrop-filter:blur(12px); position:sticky; top:0; z-index:20;
-  border-bottom:1px solid var(--border); overflow:visible;
+  padding: 54px 16px 12px;
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(10,12,20,0.55);
+  backdrop-filter: var(--blur-md) saturate(180%);
+  -webkit-backdrop-filter: var(--blur-md) saturate(180%);
+  border-bottom: 0.5px solid var(--glass-border);
+  position: sticky; top: 0; z-index: 20;
+  overflow: visible;
 }
-.hdr-title { font-size:17px; font-weight:700; flex:1; }
-.content { flex:1; padding:16px 20px 130px; }
+.hdr-title {
+  font-size: 17px; font-weight: 700; flex: 1;
+  letter-spacing: -0.2px;
+}
+.content { flex:1; padding: 14px 16px 110px; }
 
-/* Bottom nav (mobile) */
+/* ── iOS 26 Bottom Tab Bar — floating pill ── */
 .bnav {
-  position:fixed; bottom:0; left:0; right:0;
-  background:rgba(13,15,22,0.90); backdrop-filter:blur(20px);
-  border-top:1px solid var(--border); display:flex;
-  padding-bottom:max(env(safe-area-inset-bottom), 8px); z-index:100;
+  position: fixed;
+  bottom: max(env(safe-area-inset-bottom), 12px);
+  left: 50%; transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 420px;
+  background: rgba(18,20,30,0.72);
+  backdrop-filter: var(--blur-lg) saturate(200%);
+  -webkit-backdrop-filter: var(--blur-lg) saturate(200%);
+  border: 0.5px solid var(--glass-border-hi);
+  border-radius: var(--r-pill);
+  display: flex;
+  padding: 8px 6px;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 .ni {
-  flex:1; display:flex; flex-direction:column; align-items:center;
-  padding:13px 0 10px; gap:5px; cursor:pointer; color:var(--muted);
-  font-size:11px; font-weight:600; border:none; background:none; transition:color 0.2s;
-  position:relative;
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 7px 0 6px; gap: 4px; cursor: pointer; color: var(--text3);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.1px;
+  border: none; background: none; transition: all 0.22s ease;
+  border-radius: 20px; position: relative;
 }
-.ni.active { color:var(--accent); }
-.ni.active::after {
-  content:''; position:absolute; top:0; left:25%; right:25%;
-  height:2px; border-radius:0 0 2px 2px;
-  background:var(--accent);
+.ni.active {
+  color: var(--text);
+  background: rgba(255,255,255,0.1);
 }
-.ni-icon { font-size:26px; line-height:1; }
+.ni-icon { font-size: 22px; line-height: 1; transition: transform 0.2s ease; }
+.ni.active .ni-icon { transform: scale(1.08); }
 
-/* Fixed overlays */
-.overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:500; }
-/* Google Maps autocomplete dropdown */
-.pac-container { z-index:99999!important; border-radius:12px; border:1px solid rgba(255,255,255,.12);
-  background:#1a1e28; box-shadow:0 8px 32px rgba(0,0,0,.6);
-  font-family:'Be Vietnam Pro',sans-serif; margin-top:4px; }
-.pac-item { padding:10px 14px; color:#f0f2f7; border-top:1px solid rgba(255,255,255,.05); cursor:pointer; font-size:13px; }
-.pac-item:hover,.pac-item-selected { background:rgba(200,255,71,.08); }
-.pac-item-query { color:#c8ff47; font-weight:600; }
-.pac-matched { color:#47d4ff; } .pac-icon { filter:invert(1) brightness(.6); }
+/* ── Overlay / Modal backdrop ── */
+.overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display:none; align-items:center; justify-content:center; z-index:500;
+}
 .overlay.show { display:flex; }
-.sheet-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:300; display:none; align-items:flex-end; justify-content:center; }
+
+/* ── Bottom sheet ── */
+.sheet-bg {
+  position:fixed; inset:0; background:rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  z-index:300; display:none; align-items:flex-end; justify-content:center;
+}
 .sheet-bg.show { display:flex; }
-.sheet { width:100%; max-width:480px; }
-.lightbox { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:600; display:none; align-items:center; justify-content:center; padding:16px; }
+.sheet {
+  width:100%; max-width:480px;
+  background: rgba(20,22,32,0.88);
+  backdrop-filter: var(--blur-lg) saturate(180%);
+  -webkit-backdrop-filter: var(--blur-lg) saturate(180%);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  border-top: 0.5px solid var(--glass-border-hi);
+  border-left: 0.5px solid var(--glass-border);
+  border-right: 0.5px solid var(--glass-border);
+  padding: 16px 20px 40px;
+  max-height: 92vh; overflow-y: auto;
+}
+.sheet-handle {
+  width: 36px; height: 4px;
+  background: rgba(255,255,255,0.22);
+  border-radius: 2px; margin: 0 auto 18px;
+}
+
+/* ── Lightbox ── */
+.lightbox {
+  position:fixed; inset:0; background:rgba(0,0,0,0.88);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  z-index:600; display:none; align-items:center; justify-content:center; padding:16px;
+}
 .lightbox.show { display:flex; }
+.lightbox img { max-width:100%; max-height:90vh; border-radius:12px; object-fit:contain; }
+.lightbox-close {
+  position:absolute; top:20px; right:20px;
+  width:34px; height:34px;
+  background: rgba(255,255,255,0.12);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  border-radius: 50%; color:#fff; font-size:16px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+
+/* ── Toast ── */
 .toast {
-  position:fixed; bottom:88px; left:50%; transform:translateX(-50%) translateY(14px);
-  background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  padding:10px 20px; border-radius:30px; font-size:13px; font-weight:500;
-  z-index:999; opacity:0; transition:all .25s; white-space:nowrap; pointer-events:none;
+  position:fixed; bottom:92px; left:50%;
+  transform: translateX(-50%) translateY(10px);
+  background: rgba(28,30,40,0.85);
+  backdrop-filter: var(--blur-md) saturate(180%);
+  -webkit-backdrop-filter: var(--blur-md) saturate(180%);
+  border: 0.5px solid var(--glass-border-hi);
+  color: var(--text);
+  padding: 10px 22px; border-radius: var(--r-pill);
+  font-size: 13px; font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  z-index:999; opacity:0; transition:all .28s cubic-bezier(0.34,1.56,0.64,1);
+  white-space:nowrap; pointer-events:none;
 }
 .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
-.toast.ok { border-color:rgba(34,197,94,.4); color:var(--green); }
-.toast.err { border-color:rgba(239,68,68,.4); color:var(--red); }
+.toast.ok  { border-color:rgba(48,209,88,.4); color:var(--green); }
+.toast.err { border-color:rgba(255,69,58,.4); color:var(--red); }
 
-/* ── DESKTOP (≥ 768px) ── */
+/* ── Autocomplete dropdown ── */
+.pac-container {
+  z-index:99999!important; border-radius:16px;
+  border:0.5px solid var(--glass-border-hi);
+  background: rgba(20,22,32,0.92);
+  backdrop-filter: var(--blur-md); -webkit-backdrop-filter: var(--blur-md);
+  box-shadow:0 12px 40px rgba(0,0,0,.6);
+  font-family:'Be Vietnam Pro',sans-serif; margin-top:6px;
+}
+.pac-item {
+  padding:10px 14px; color:var(--text);
+  border-top:0.5px solid rgba(255,255,255,.05); cursor:pointer; font-size:13px;
+}
+.pac-item:hover,.pac-item-selected { background:rgba(200,255,71,.08); }
+.pac-item-query { color:#c8ff47; font-weight:600; }
+.pac-matched { color:#47d4ff; }
+.pac-icon { filter:invert(1) brightness(.6); }
+
+/* ── DESKTOP ── */
 @media (min-width: 768px) {
   body { background-color:#08090f; flex-direction:row; }
-  #bg-layer { background-position: calc(var(--bg-pos-x, 50%) + calc(var(--sidebar-w) / 2)) var(--bg-pos-y, 50%); }
+  #bg-layer { background-position: calc(var(--bg-pos-x,50%) + calc(var(--sidebar-w)/2)) var(--bg-pos-y,50%); }
+  #desktop-layout { display:flex; width:100%; min-height:100vh; }
 
-  /* Desktop wrapper */
-  #desktop-layout {
-    display:flex; width:100%; min-height:100vh;
-  }
-
-  /* Sidebar */
   #desktop-sidebar {
-    width:var(--sidebar-w); min-height:100vh; flex-shrink:0;
-    background:rgba(16,19,26,0.88); backdrop-filter:blur(16px); border-right:1px solid var(--border);
+    width: var(--sidebar-w); min-height:100vh; flex-shrink:0;
+    background: rgba(12,14,22,0.75);
+    backdrop-filter: var(--blur-lg) saturate(180%);
+    -webkit-backdrop-filter: var(--blur-lg) saturate(180%);
+    border-right: 0.5px solid var(--glass-border);
     position:fixed; top:0; left:0; bottom:0;
-    display:flex; flex-direction:column; padding:28px 0 20px; z-index:50;
+    display:flex; flex-direction:column; padding:32px 0 24px; z-index:50;
     overflow:visible;
   }
   #sidebar-logo {
-    padding:4px 20px 32px;
-    border-bottom:1px solid var(--border);
-    margin-bottom:12px;
-    overflow:visible;
+    padding: 4px 20px 28px;
+    border-bottom: 0.5px solid var(--glass-border);
+    margin-bottom: 8px; overflow:visible;
   }
   .snav-item {
     display:flex; align-items:center; gap:12px;
-    padding:11px 20px; cursor:pointer; color:var(--muted);
-    font-size:14px; font-weight:500; border:none; background:none;
-    width:100%; text-align:left; transition:all .15s;
-    border-radius:0;
+    padding: 10px 14px; margin: 2px 10px;
+    cursor:pointer; color:var(--text2);
+    font-size: 14px; font-weight: 500;
+    border:none; background:none;
+    width: calc(100% - 20px); text-align:left;
+    transition: all .18s ease;
+    border-radius: 14px;
   }
-  .snav-item:hover { background:rgba(255,255,255,.04); color:var(--text); }
-  .snav-item.active { background:rgba(200,255,71,.08); color:var(--accent); border-right:2px solid var(--accent); }
-  .snav-icon { font-size:20px; width:24px; text-align:center; }
+  .snav-item:hover {
+    background: var(--glass-1);
+    color: var(--text);
+  }
+  .snav-item.active {
+    background: rgba(200,255,71,0.12);
+    color: var(--accent);
+    border: 0.5px solid rgba(200,255,71,0.2);
+  }
+  .snav-icon { font-size:18px; width:22px; text-align:center; }
   #sidebar-user {
-    margin-top:auto; padding:16px 20px 0;
-    border-top:1px solid var(--border);
+    margin-top:auto; padding:14px 10px 0;
+    border-top: 0.5px solid var(--glass-border);
   }
-
-  /* Main content area */
   #desktop-main {
-    margin-left:var(--sidebar-w); flex:1; display:flex; justify-content:center;
+    margin-left:var(--sidebar-w); flex:1;
+    display:flex; justify-content:center;
     min-height:100vh; background:transparent;
   }
-  .page {
-    max-width:640px; width:100%;
-    min-height:100vh;
-  }
-  /* Hide mobile bottom nav on desktop */
+  .page { max-width:640px; width:100%; min-height:100vh; }
   .bnav { display:none !important; }
-  /* Adjust header padding for desktop (no notch) */
-  .hdr { padding:20px 24px 14px; }
-  /* More content padding, no bottom nav space */
-  .content { padding:20px 24px 40px; }
-  /* Auth page on desktop */
+  .hdr { padding:22px 24px 14px; }
+  .content { padding:18px 24px 40px; }
   .auth-wrap { max-width:440px; margin:0 auto; padding:60px 32px; }
-  /* Sheet max width */
   .sheet { max-width:520px; }
-  /* Toast position */
-  .toast { bottom:24px; }
+  .toast { bottom:28px; }
 }
 
 /* ── Auth ── */
-.auth-wrap { display:flex; flex-direction:column; justify-content:center; min-height:100vh; padding:48px 24px 40px; }
-.logo { font-family:'Be Vietnam Pro',sans-serif; font-size:42px; font-weight:700; line-height:1.3; text-transform:capitalize; letter-spacing:-0.5px; }
+.auth-wrap {
+  display:flex; flex-direction:column; justify-content:center;
+  min-height:100vh; padding:52px 24px 44px;
+}
+.logo {
+  font-family:'Be Vietnam Pro',sans-serif; font-size:42px; font-weight:700;
+  line-height:1.3; text-transform:capitalize; letter-spacing:-0.5px;
+}
 .logo span { color:var(--accent); }
 
 /* ── Form ── */
 .fg { margin-bottom:14px; }
-.fl { display:block; font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:7px; }
-.fi {
-  width:100%; background:var(--card); border:1px solid var(--border);
-  border-radius:var(--r); padding:14px 16px; color:var(--text);
-  font-family:'Be Vietnam Pro',sans-serif; font-size:15px; outline:none; transition:border-color .2s;
-  -webkit-appearance:none;
+.fl {
+  display:block; font-size:12px; font-weight:600; color:var(--text2);
+  text-transform:uppercase; letter-spacing:.6px; margin-bottom:8px;
 }
-.fi:focus { border-color:rgba(200,255,71,.45); }
-.fi::placeholder { color:var(--muted); }
-.row2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.fi {
+  width:100%;
+  background: rgba(255,255,255,0.06);
+  border: 0.5px solid var(--glass-border);
+  border-radius: var(--r); padding:14px 16px; color:var(--text);
+  font-family:'Be Vietnam Pro',sans-serif; font-size:15px;
+  outline:none; transition: all .2s;
+  -webkit-appearance:none;
+  backdrop-filter: blur(8px);
+}
+.fi:focus {
+  border-color: rgba(200,255,71,0.5);
+  background: rgba(255,255,255,0.09);
+  box-shadow: 0 0 0 3px rgba(200,255,71,0.08);
+}
+.fi::placeholder { color:var(--text3); }
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
+/* ── Buttons ── */
 .btn {
   width:100%; background:var(--accent); color:#080d00;
-  border:none; border-radius:var(--r); padding:15px;
+  border:none; border-radius:var(--r-pill); padding:15px;
   font-family:'Be Vietnam Pro',sans-serif; font-size:15px; font-weight:700;
-  cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:8px;
+  cursor:pointer; transition:all .18s ease;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  box-shadow: 0 2px 16px rgba(200,255,71,0.2);
 }
-.btn:active { transform:scale(.97); }
+.btn:active { transform:scale(.97); box-shadow:none; }
 .btn:disabled { opacity:.4; cursor:not-allowed; }
+
 .btn-ghost {
-  background:var(--bg3); border:1px solid var(--border); color:var(--text);
-  border-radius:var(--r); padding:9px 14px;
+  background: rgba(255,255,255,0.07);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  color:var(--text); border-radius:var(--r-pill);
+  padding:9px 16px;
   font-family:'Be Vietnam Pro',sans-serif; font-size:13px; font-weight:600;
-  cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all .15s;
+  cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+  transition:all .18s;
 }
+.btn-ghost:hover { background:rgba(255,255,255,0.12); }
+
 .btn-sm {
-  background:var(--accent); color:#080d00; border:none; border-radius:10px;
-  padding:9px 18px; font-family:'Be Vietnam Pro',sans-serif; font-size:13px; font-weight:700;
+  background:var(--accent); color:#080d00;
+  border:none; border-radius:var(--r-pill);
+  padding:9px 18px;
+  font-family:'Be Vietnam Pro',sans-serif; font-size:13px; font-weight:700;
   cursor:pointer; transition:all .15s; white-space:nowrap;
 }
 .btn-sm:active { transform:scale(.96); }
-.btn-sm.voted { background:rgba(200,255,71,.15); color:var(--accent); border:1px solid rgba(200,255,71,.35); }
-.back-btn {
-  width:36px; height:36px; border-radius:10px; flex-shrink:0;
-  background:var(--bg3); border:1px solid var(--border);
-  display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px;
+.btn-sm.voted {
+  background: rgba(200,255,71,0.12);
+  color:var(--accent);
+  border:0.5px solid rgba(200,255,71,0.3);
 }
 
-/* ── Cards ── */
-.card {
-  background:var(--card); border:1px solid var(--border);
-  border-radius:18px; padding:16px; margin-bottom:10px; cursor:pointer; transition:all .2s;
+.back-btn {
+  width:36px; height:36px; border-radius:50%; flex-shrink:0;
+  background: rgba(255,255,255,0.09);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; font-size:18px; color:var(--accent2);
+  transition: background .15s;
 }
-.card:active { transform:scale(.98); }
+.back-btn:hover { background:rgba(255,255,255,0.14); }
+
+/* ── Cards — Liquid Glass ── */
+.card {
+  background: var(--glass-1);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-radius: 20px; padding:16px; margin-bottom:10px;
+  cursor:pointer; transition:all .2s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+.card:active { transform:scale(.985); }
 
 .hero-card {
-  background:linear-gradient(135deg,#1a2510,#0f1a0a);
-  border:1px solid rgba(200,255,71,.2); border-radius:20px;
-  padding:20px; margin-bottom:16px; position:relative; overflow:hidden;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 0.5px solid rgba(255,255,255,0.16);
+  border-radius: 22px; padding:20px; margin-bottom:16px;
+  position:relative; overflow:hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
 }
-.hero-card::after { content:''; position:absolute; right:14px; top:10px; font-size:60px; opacity:.07; }
+.hero-card::after { content:''; }
 
 /* ── Badge ── */
-.badge { font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
-.bv { background:rgba(200,255,71,.15); color:var(--accent); }
-.bc { background:rgba(107,114,128,.2); color:var(--muted); }
-.bp { background:rgba(34,197,94,.15); color:var(--green); }
-.bu { background:rgba(239,68,68,.15); color:var(--red); }
+.badge {
+  font-size:10px; font-weight:700; padding:4px 10px;
+  border-radius:var(--r-pill); text-transform:uppercase; letter-spacing:.3px; white-space:nowrap;
+  backdrop-filter: blur(8px);
+}
+.bv { background:rgba(200,255,71,0.15); color:var(--accent); border:0.5px solid rgba(200,255,71,0.25); }
+.bc { background:rgba(255,255,255,0.08); color:var(--text2); border:0.5px solid var(--glass-border); }
+.bp { background:rgba(48,209,88,0.15); color:var(--green); border:0.5px solid rgba(48,209,88,0.25); }
+.bu { background:rgba(255,69,58,0.15); color:var(--red); border:0.5px solid rgba(255,69,58,0.25); }
 
 /* ── Progress ── */
-.prog { height:4px; background:rgba(255,255,255,.07); border-radius:2px; overflow:hidden; margin-top:10px; }
+.prog { height:3px; background:rgba(255,255,255,0.07); border-radius:2px; overflow:hidden; margin-top:10px; }
 .prog-fill { height:100%; border-radius:2px; background:var(--accent); transition:width .4s; }
 
 /* ── Tabs ── */
-.tabs { display:flex; background:var(--bg3); border-radius:12px; padding:3px; margin-bottom:16px; }
-.tab {
-  flex:1; padding:9px; text-align:center; font-size:13px; font-weight:600;
-  cursor:pointer; border-radius:10px; border:none; background:none; color:var(--muted); transition:all .2s;
+.tabs {
+  display:flex;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(16px);
+  border: 0.5px solid var(--glass-border);
+  border-radius: var(--r-pill); padding:3px; margin-bottom:16px;
 }
-.tab.active { background:var(--card); color:var(--text); }
+.tab {
+  flex:1; padding:9px; text-align:center; font-size:12px; font-weight:600;
+  cursor:pointer; border-radius: var(--r-pill); border:none; background:none;
+  color:var(--text2); transition:all .22s ease;
+  letter-spacing: 0.1px;
+}
+.tab.active {
+  background: rgba(255,255,255,0.12);
+  color:var(--text);
+  border: 0.5px solid var(--glass-border-hi);
+  box-shadow: 0 1px 8px rgba(0,0,0,0.2);
+}
 
 /* ── Member row ── */
 .mrow {
   display:flex; align-items:center; gap:12px;
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--r); padding:12px 14px; margin-bottom:8px; transition:all .15s;
+  background: var(--glass-1);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  border-radius:var(--r); padding:12px 14px; margin-bottom:8px;
+  transition:all .15s;
 }
-.mrow.has-voted-border { border-color:rgba(200,255,71,.25); }
+.mrow.has-voted-border { border-color:rgba(200,255,71,0.28); background:rgba(200,255,71,0.04); }
 .av {
   width:40px; height:40px; border-radius:50%; flex-shrink:0;
   display:flex; align-items:center; justify-content:center;
   font-weight:700; font-size:14px;
 }
-.vbar { height:3px; background:rgba(255,255,255,.05); border-radius:2px; margin-top:5px; }
-.vfill { height:100%; border-radius:2px; background:var(--accent); transition:width .4s; }
+.vbar { height:2px; background:rgba(255,255,255,0.07); border-radius:1px; margin-top:5px; }
+.vfill { height:100%; border-radius:1px; background:var(--accent); transition:width .4s; }
 
 /* ── Who voted row ── */
 .wrow {
   display:flex; align-items:center; gap:10px;
-  background:var(--card); border:1px solid var(--border);
+  background: var(--glass-1);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(16px);
   border-radius:var(--r); padding:11px 14px; margin-bottom:8px;
 }
-.wrow.done { border-color:rgba(200,255,71,.2); background:rgba(200,255,71,.04); }
-.wrow.pending { border-color:rgba(107,114,128,.15); opacity:.7; }
+.wrow.done { border-color:rgba(200,255,71,0.22); background:rgba(200,255,71,0.04); }
+.wrow.pending { border-color:rgba(255,255,255,0.06); opacity:.6; }
 
 /* ── Meta grid ── */
 .mgrid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
 .mi { display:flex; flex-direction:column; gap:2px; }
-.ml { color:var(--muted); font-size:11px; }
+.ml { color:var(--text3); font-size:11px; letter-spacing:0.2px; }
 .mv { font-size:13px; font-weight:600; }
 
 /* ── Share box ── */
 .sharebox {
-  background:rgba(200,255,71,.06); border:1px solid rgba(200,255,71,.2);
-  border-radius:16px; padding:16px; margin-bottom:16px;
+  background: rgba(200,255,71,0.06);
+  border: 0.5px solid rgba(200,255,71,0.22);
+  backdrop-filter: blur(16px);
+  border-radius:20px; padding:16px; margin-bottom:16px;
 }
 .code-big { font-family:'Syne',sans-serif; font-size:38px; font-weight:800; color:var(--accent); letter-spacing:8px; }
 
 /* ── Pay ── */
 .pay-hero {
-  background:linear-gradient(135deg,#0e1520,#0a1018);
-  border:1px solid rgba(71,212,255,.2); border-radius:20px; padding:20px; margin-bottom:16px;
+  background: rgba(71,212,255,0.05);
+  backdrop-filter: blur(24px) saturate(140%);
+  border: 0.5px solid rgba(71,212,255,0.22);
+  border-radius:22px; padding:20px; margin-bottom:16px;
 }
-.pay-amt { font-family:'Syne',sans-serif; font-size:36px; font-weight:800; color:var(--accent2); }
+.pay-amt { font-family:'Be Vietnam Pro',sans-serif; font-size:36px; font-weight:800; color:var(--accent2); }
 .chips { display:flex; gap:8px; margin-top:14px; }
-.chip { background:rgba(255,255,255,.04); border:1px solid var(--border); border-radius:10px; padding:8px 12px; flex:1; text-align:center; }
+.chip {
+  background: rgba(255,255,255,0.05);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  border-radius:14px; padding:8px 12px; flex:1; text-align:center;
+}
 .chip-val { font-size:15px; font-weight:700; }
-.chip-lbl { color:var(--muted); font-size:10px; margin-top:2px; }
+.chip-lbl { color:var(--text3); font-size:10px; margin-top:2px; }
 
 /* ── Section header ── */
 .sec { display:flex; justify-content:space-between; align-items:center; margin:18px 0 10px; }
@@ -338,110 +521,147 @@ body::before {
 
 /* ── Expense items ── */
 .exp-item {
-  background:var(--card); border:1px solid var(--border);
+  background: var(--glass-1);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(16px);
   border-radius:var(--r); padding:13px 14px; margin-bottom:8px;
   display:flex; align-items:flex-start; gap:10px;
 }
-.exp-item.exp-all  { border-left:3px solid var(--accent); }
-.exp-item.exp-sel  { border-left:3px solid var(--accent2); }
-.exp-item.exp-pers { border-left:3px solid #a78bfa; }
-.exp-badge-all  { background:rgba(200,255,71,.12); color:var(--accent); }
-.exp-badge-sel  { background:rgba(71,212,255,.12); color:var(--accent2); }
-.exp-badge-pers { background:rgba(167,139,250,.12); color:#a78bfa; }
+.exp-item.exp-all  { border-left:2px solid var(--accent); }
+.exp-item.exp-sel  { border-left:2px solid var(--accent2); }
+.exp-item.exp-pers { border-left:2px solid var(--purple); }
+.exp-badge-all  { background:rgba(200,255,71,0.12); color:var(--accent); }
+.exp-badge-sel  { background:rgba(71,212,255,0.12); color:var(--accent2); }
+.exp-badge-pers { background:rgba(191,90,242,0.12); color:var(--purple); }
 
-/* ── Add expense modal (bottom sheet) ── */
-.sheet-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 18px; }
-.sheet { background:var(--bg2); border-radius:20px 20px 0 0; padding:20px 20px 36px; max-height:90vh; overflow-y:auto; }
-
-/* Split type selector */
+/* ── Split type selector ── */
 .split-opts { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
 .split-opt {
-  flex:1; min-width:80px; padding:9px 6px; border-radius:10px; text-align:center;
-  border:1px solid var(--border); background:var(--card); color:var(--muted);
-  font-size:12px; font-weight:600; cursor:pointer; transition:all .15s;
+  flex:1; min-width:80px; padding:10px 6px; border-radius:16px; text-align:center;
+  border: 0.5px solid var(--glass-border);
+  background: var(--glass-1);
+  color:var(--text2);
+  font-size:12px; font-weight:600; cursor:pointer; transition:all .18s;
 }
-.split-opt.active { background:rgba(200,255,71,.1); border-color:rgba(200,255,71,.4); color:var(--accent); }
+.split-opt.active {
+  background:rgba(200,255,71,0.1);
+  border-color:rgba(200,255,71,0.35);
+  color:var(--accent);
+}
 
-/* Member picker */
+/* ── Member picker ── */
 .mpick-wrap { display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; }
 .mpick-row {
   display:flex; align-items:center; gap:10px;
-  background:var(--card); border:1px solid var(--border); border-radius:10px; padding:9px 12px;
+  background: var(--glass-1);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  border-radius:12px; padding:9px 12px;
   cursor:pointer; transition:all .15s;
 }
-.mpick-row.picked { border-color:rgba(200,255,71,.4); background:rgba(200,255,71,.06); }
-.mpick-check { width:20px; height:20px; border-radius:50%; border:2px solid var(--border); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px; }
+.mpick-row.picked { border-color:rgba(200,255,71,0.35); background:rgba(200,255,71,0.06); }
+.mpick-check {
+  width:20px; height:20px; border-radius:50%;
+  border: 1.5px solid var(--glass-border-hi);
+  flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:11px;
+}
 .mpick-row.picked .mpick-check { background:var(--accent); border-color:var(--accent); color:#080d00; }
-.amount-mini { width:90px; background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:6px 8px; color:var(--text); font-size:13px; text-align:right; }
+.amount-mini {
+  width:90px; background:rgba(255,255,255,0.06);
+  border: 0.5px solid var(--glass-border);
+  border-radius:10px; padding:6px 8px; color:var(--text); font-size:13px; text-align:right;
+}
 
-.lightbox { position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:600; display:none; align-items:center; justify-content:center; padding:16px; }
+/* ── Lightbox ── */
+.lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.88); backdrop-filter:blur(20px); z-index:600; display:none; align-items:center; justify-content:center; padding:16px; }
 .lightbox.show { display:flex; }
-.lightbox img { max-width:100%; max-height:90vh; border-radius:8px; object-fit:contain; }
-.lightbox-close { position:absolute; top:16px; right:16px; width:36px; height:36px; background:rgba(255,255,255,.12); border:none; border-radius:50%; color:#fff; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-.spin { width:24px; height:24px; border:2px solid rgba(255,255,255,.1); border-top-color:var(--accent); border-radius:50%; animation:sp .6s linear infinite; }
+.lightbox img { max-width:100%; max-height:90vh; border-radius:14px; object-fit:contain; }
+
+/* ── Spinner ── */
+.spin { width:24px; height:24px; border:2px solid rgba(255,255,255,0.1); border-top-color:var(--accent); border-radius:50%; animation:sp .7s linear infinite; }
 @keyframes sp { to { transform:rotate(360deg); } }
-.empty { text-align:center; padding:52px 20px; color:var(--muted); }
-.empty-icon { font-size:44px; margin-bottom:12px; }
+
+/* ── Empty state ── */
+.empty { text-align:center; padding:52px 20px; color:var(--text3); }
+.empty-icon { font-size:40px; margin-bottom:12px; opacity:0.6; }
+
+/* ── Receipt ── */
 .receipt-box {
-  border:1px solid var(--border); border-radius:16px; overflow:hidden; margin-bottom:16px;
+  border: 0.5px solid var(--glass-border);
+  border-radius:18px; overflow:hidden; margin-bottom:16px;
+  backdrop-filter: blur(12px);
 }
-.receipt-img { width:100%; display:block; max-height:340px; object-fit:contain; background:#0a0c10; cursor:zoom-in; }
+.receipt-img { width:100%; display:block; max-height:340px; object-fit:contain; background:rgba(0,0,0,0.4); cursor:zoom-in; }
 .receipt-upload {
-  border:2px dashed rgba(200,255,71,.25); border-radius:16px;
+  border:1.5px dashed rgba(200,255,71,0.22); border-radius:18px;
   padding:28px 20px; text-align:center; margin-bottom:16px; cursor:pointer;
-  transition:border-color .2s; background:rgba(200,255,71,.03);
+  transition:border-color .2s; background:rgba(200,255,71,0.02);
+  backdrop-filter: blur(8px);
 }
-.receipt-upload:hover { border-color:rgba(200,255,71,.5); }
+.receipt-upload:hover { border-color:rgba(200,255,71,0.45); }
 .receipt-upload input { display:none; }
 
 /* ── Fund ── */
 .fund-hero {
-  background:linear-gradient(135deg,#1a1230,#100d20);
-  border:1px solid rgba(167,139,250,.25); border-radius:20px;
-  padding:20px; margin-bottom:16px; position:relative; overflow:hidden;
+  background: rgba(167,139,250,0.08);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 0.5px solid rgba(167,139,250,0.22);
+  border-radius:22px; padding:22px; margin-bottom:16px;
+  position:relative; overflow:hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.08);
 }
-.fund-hero::after { content:''; position:absolute; right:14px; top:10px; font-size:56px; opacity:.08; }
-.fund-bal { font-family:'Be Vietnam Pro',sans-serif; font-size:38px; font-weight:800; color:#a78bfa; }
+.fund-bal { font-family:'Be Vietnam Pro',sans-serif; font-size:38px; font-weight:800; color:#bf9eff; }
 .fund-bal.low { color:var(--red); }
 
 .ftx-row {
   display:flex; align-items:flex-start; gap:12px;
-  background:var(--card); border:1px solid var(--border);
+  background: var(--glass-1);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(16px);
   border-radius:var(--r); padding:12px 14px; margin-bottom:8px;
 }
-.ftx-row.pending-row { border-color:rgba(251,191,36,.25); }
-.ftx-row.confirmed-row { border-color:rgba(34,197,94,.2); }
-.ftx-row.rejected-row { border-color:rgba(239,68,68,.2); opacity:.65; }
+.ftx-row.pending-row { border-color:rgba(255,214,10,0.22); }
+.ftx-row.confirmed-row { border-color:rgba(48,209,88,0.2); }
+.ftx-row.rejected-row { border-color:rgba(255,69,58,0.2); opacity:.6; }
 .ftx-icon { width:36px; height:36px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; }
-.ftx-in  { background:rgba(34,197,94,.15); }
-.ftx-out { background:rgba(239,68,68,.12); }
-.ftx-pend { background:rgba(251,191,36,.15); }
+.ftx-in  { background:rgba(48,209,88,0.15); }
+.ftx-out { background:rgba(255,69,58,0.12); }
+.ftx-pend { background:rgba(255,214,10,0.15); }
 
-/* Payment method toggle */
+/* ── Payment method toggle ── */
 .method-toggle { display:flex; gap:8px; margin-top:12px; }
 .method-btn {
-  flex:1; padding:11px 8px; border-radius:12px; text-align:center;
-  border:1px solid var(--border); background:var(--card); color:var(--muted);
-  font-size:12px; font-weight:600; cursor:pointer; transition:all .15s;
+  flex:1; padding:11px 8px; border-radius:var(--r-pill); text-align:center;
+  border: 0.5px solid var(--glass-border);
+  background: var(--glass-1);
+  backdrop-filter: blur(12px);
+  color:var(--text2); font-size:12px; font-weight:600; cursor:pointer; transition:all .18s;
 }
-.method-btn.active-transfer { background:rgba(71,212,255,.1); border-color:rgba(71,212,255,.4); color:var(--accent2); }
-.method-btn.active-fund { background:rgba(167,139,250,.1); border-color:rgba(167,139,250,.4); color:#a78bfa; }
+.method-btn.active-transfer { background:rgba(71,212,255,0.1); border-color:rgba(71,212,255,0.35); color:var(--accent2); }
+.method-btn.active-fund { background:rgba(167,139,250,0.1); border-color:rgba(167,139,250,0.35); color:#bf9eff; }
 
-/* Admin member card */
-/* ── Guest member row ── */
+/* ── Guest rows ── */
 .guest-row {
   display:flex; align-items:center; gap:10px;
-  background:rgba(255,107,71,.06); border:1px solid rgba(255,107,71,.2);
+  background:rgba(255,107,71,0.06);
+  border: 0.5px solid rgba(255,107,71,0.2);
+  backdrop-filter: blur(12px);
   border-radius:var(--r); padding:10px 14px; margin-bottom:6px;
 }
-.guest-badge { background:rgba(255,107,71,.15); color:var(--accent3); font-size:9px; padding:2px 7px; border-radius:8px; font-weight:700; white-space:nowrap; }
+.guest-badge { background:rgba(255,107,71,0.15); color:var(--accent3); font-size:9px; padding:2px 8px; border-radius:var(--r-pill); font-weight:700; white-space:nowrap; }
 .guest-pay-row {
-  background:rgba(255,107,71,.05); border:1px solid rgba(255,107,71,.2);
+  background:rgba(255,107,71,0.05);
+  border: 0.5px solid rgba(255,107,71,0.18);
   border-radius:var(--r);
 }
+
+/* ── Admin member card ── */
 .admin-member-card {
-  background:var(--card); border:1px solid var(--border); border-radius:16px;
-  padding:14px 16px; margin-bottom:10px;
+  background: var(--glass-1);
+  border: 0.5px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  border-radius:18px; padding:14px 16px; margin-bottom:10px;
 }
 </style>
 </head>
@@ -479,11 +699,11 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div style="color:var(--muted);font-size:12px;margin-top:4px">Xin chào, <span id="sidebar-username" style="color:var(--text);font-weight:600"></span></div>
     <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
       <span style="font-size:10px;color:var(--muted)">Quỹ của tôi:</span>
-      <span id="sidebar-balance" style="font-size:13px;font-weight:700;color:#a78bfa">—</span>
+      <span id="sidebar-balance" style="font-size:13px;font-weight:700;color:#bf9eff">—</span>
     </div>
     <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
       <span style="font-size:10px;color:var(--muted)">Quỹ tổng:</span>
-      <span id="sidebar-total-fund" style="font-size:13px;font-weight:700;color:#a78bfa">—</span>
+      <span id="sidebar-total-fund" style="font-size:13px;font-weight:700;color:#bf9eff">—</span>
     </div>
   </div>
   <button class="snav-item active" id="snav-home" onclick="goPage('pg-home')">
@@ -548,7 +768,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </div>
 
     <!-- Quick login card (hiện khi có tài khoản đã lưu) -->
-    <div id="quick-login-card" style="display:none;background:rgba(200,255,71,.06);border:1px solid rgba(200,255,71,.2);border-radius:18px;padding:16px;margin-bottom:20px">
+    <div id="quick-login-card" style="display:none;background:rgba(200,255,71,.06);border:0.5px solid rgba(200,255,71,.22);border-radius:20px;backdrop-filter:blur(20px);padding:16px;margin-bottom:20px">
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tài khoản gần đây</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
         <div id="ql-avatar" class="av" style="width:44px;height:44px;font-size:16px;flex-shrink:0"></div>
@@ -611,8 +831,8 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div style="flex:1">
       <div class="logo" style="font-size:22px;padding-bottom:4px">Cầu <span>Lông</span> <span style="color:#106B3C">KTH</span></div>
       <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span>
-        · Quỹ tôi: <span id="home-balance" style="font-weight:700;color:#a78bfa">—</span>
-        · Tổng: <span id="home-total-fund" style="font-weight:700;color:#a78bfa">—</span>
+        · Quỹ tôi: <span id="home-balance" style="font-weight:700;color:#bf9eff">—</span>
+        · Tổng: <span id="home-total-fund" style="font-weight:700;color:#bf9eff">—</span>
       </div>
     </div>
     <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền"><i class="ph-bold ph-image"></i></button>
@@ -634,7 +854,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 ══════════════════════════════ -->
 <div class="page" id="pg-create">
   <div class="hdr">
-    <div class="back-btn" onclick="goPage('pg-home')">←</div>
+    <div class="back-btn" onclick="goPage('pg-home')"><i class="ph-bold ph-arrow-left"></i></div>
     <div class="hdr-title">Tạo buổi bình chọn</div>
   </div>
   <div class="content">
@@ -668,7 +888,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 ══════════════════════════════ -->
 <div class="page" id="pg-session">
   <div class="hdr">
-    <div class="back-btn" onclick="goPage('pg-home')">←</div>
+    <div class="back-btn" onclick="goPage('pg-home')"><i class="ph-bold ph-arrow-left"></i></div>
     <div class="hdr-title" id="s-hdr">Buổi chơi</div>
     <div style="display:flex;gap:8px;align-items:center">
       <div id="host-edit-btn" style="display:none">
@@ -753,7 +973,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <!-- TAB: Chi phí -->
     <div id="tab-pane-exp" style="display:none">
       <div id="exp-host-add" style="display:none;margin-bottom:14px">
-        <button class="btn" onclick="openExpenseSheet()" style="background:rgba(200,255,71,.12);border:1px solid rgba(200,255,71,.3);color:var(--accent)">
+        <button class="btn" onclick="openExpenseSheet()" style="background:rgba(200,255,71,.10);border:0.5px solid rgba(200,255,71,.28);color:var(--accent);border-radius:var(--r-pill)">
           + Thêm khoản chi phí
         </button>
       </div>
@@ -959,7 +1179,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
   <div class="hdr">
     <div style="flex:1"><div class="hdr-title">Quỹ của tôi</div></div>
     <div id="admin-panel-btn" style="display:none">
-      <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:#a78bfa;border-color:rgba(167,139,250,.3)"
+      <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:#bf9eff;border-color:rgba(167,139,250,.3)"
         onclick="goPage('pg-admin')"><i class="ph-bold ph-key"></i> Admin</button>
     </div>
   </div>
@@ -971,13 +1191,13 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div style="color:var(--muted);font-size:12px;margin-top:6px" id="fund-status-text"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between">
         <span style="color:var(--muted);font-size:12px"><i class="ph-bold ph-bank"></i> Tổng quỹ chung</span>
-        <span id="fund-total-all" style="font-size:14px;font-weight:700;color:#a78bfa">—</span>
+        <span id="fund-total-all" style="font-size:14px;font-weight:700;color:#bf9eff">—</span>
       </div>
     </div>
 
     <!-- Nút đóng quỹ -->
     <button class="btn" onclick="openDepositSheet()"
-      style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.35);color:#a78bfa;margin-bottom:20px">
+      style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.35);color:#bf9eff;margin-bottom:20px">
       + Đóng quỹ
     </button>
 
@@ -1084,7 +1304,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <!-- Số tiền -->
       <div style="text-align:center;margin-bottom:14px">
         <div style="font-size:12px;color:var(--muted);margin-bottom:4px">Số tiền cần chuyển</div>
-        <div id="dep-qr-amount" style="font-size:28px;font-weight:800;color:#a78bfa"></div>
+        <div id="dep-qr-amount" style="font-size:28px;font-weight:800;color:#bf9eff"></div>
       </div>
 
       <!-- QR Code -->
@@ -1146,7 +1366,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="sheet-handle"></div>
     <div style="font-size:17px;font-weight:800;margin-bottom:6px">Chọn cách thanh toán</div>
     <div style="color:var(--muted);font-size:13px;margin-bottom:6px">Số tiền của bạn: <strong id="method-amount" style="color:var(--accent2)">—</strong></div>
-    <div style="color:var(--muted);font-size:12px;margin-bottom:18px">Số dư quỹ: <strong id="method-balance" style="color:#a78bfa">—</strong></div>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:18px">Số dư quỹ: <strong id="method-balance" style="color:#bf9eff">—</strong></div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <button onclick="choosePayMethod('transfer')"
         style="padding:16px;border-radius:14px;background:rgba(71,212,255,.1);border:1px solid rgba(71,212,255,.3);
@@ -1160,7 +1380,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       </button>
       <button id="fund-pay-btn" onclick="choosePayMethod('fund')"
         style="padding:16px;border-radius:14px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.3);
-        color:#a78bfa;font-family:'Be Vietnam Pro',sans-serif;font-size:15px;font-weight:700;cursor:pointer;
+        color:#bf9eff;font-family:'Be Vietnam Pro',sans-serif;font-size:15px;font-weight:700;cursor:pointer;
         display:flex;align-items:center;gap:10px">
         <i class="ph-bold ph-bank" style="font-size:22px"></i>
         <div style="text-align:left">
@@ -3402,7 +3622,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
             <span style="font-size:28px">✅</span>
             <div style="flex:1">
               <div style="font-size:15px;font-weight:700;color:var(--green)">Đã thanh toán
-                ${myPay.paid_method==='fund' ? '<span style="font-size:11px;background:rgba(167,139,250,.2);color:#a78bfa;border-radius:8px;padding:1px 7px;margin-left:6px">Quỹ</span>' : ''}
+                ${myPay.paid_method==='fund' ? '<span style="font-size:11px;background:rgba(167,139,250,.2);color:#bf9eff;border-radius:8px;padding:1px 7px;margin-left:6px">Quỹ</span>' : ''}
               </div>
               <div style="font-size:12px;color:var(--muted);margin-top:1px">
                 ${myPay.amount < 0 ? 'Hoàn lại + ' + fmt(-myPay.amount) : fmt(myPay.amount)} · ${myPay.paid_at ? new Date(myPay.paid_at).toLocaleString('vi-VN') : ''}
