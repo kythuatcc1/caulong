@@ -27,8 +27,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Syne:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Syne:wght@700&display=swap" rel="stylesheet"></noscript>
+<noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Syne:wght@700&display=swap" rel="stylesheet"></noscript>
 
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -248,7 +254,7 @@ body::before {
   border:1px solid rgba(200,255,71,.2); border-radius:20px;
   padding:20px; margin-bottom:16px; position:relative; overflow:hidden;
 }
-.hero-card::after { content:'🏸'; position:absolute; right:14px; top:10px; font-size:60px; opacity:.07; }
+.hero-card::after { content:''; position:absolute; right:14px; top:10px; font-size:60px; opacity:.07; }
 
 /* ── Badge ── */
 .badge { font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
@@ -394,7 +400,7 @@ body::before {
   border:1px solid rgba(167,139,250,.25); border-radius:20px;
   padding:20px; margin-bottom:16px; position:relative; overflow:hidden;
 }
-.fund-hero::after { content:'🏦'; position:absolute; right:14px; top:10px; font-size:56px; opacity:.08; }
+.fund-hero::after { content:''; position:absolute; right:14px; top:10px; font-size:56px; opacity:.08; }
 .fund-bal { font-family:'Be Vietnam Pro',sans-serif; font-size:38px; font-weight:800; color:#a78bfa; }
 .fund-bal.low { color:var(--red); }
 
@@ -481,36 +487,36 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </div>
   </div>
   <button class="snav-item active" id="snav-home" onclick="goPage('pg-home')">
-    <span class="snav-icon">🏠</span> Trang chủ
+    <i class="ph-bold ph-house snav-icon"></i> Trang chủ
   </button>
   <button class="snav-item" id="snav-fund" onclick="goPage('pg-fund')">
-    <span class="snav-icon">🏦</span> Quỹ
+    <i class="ph-bold ph-bank snav-icon"></i> Quỹ
   </button>
   <button class="snav-item" id="snav-create" onclick="goPage('pg-create')">
-    <span class="snav-icon">➕</span> Tạo buổi
+    <i class="ph-bold ph-plus snav-icon"></i> Tạo buổi
   </button>
   <div id="snav-admin" style="display:none">
     <button class="snav-item" onclick="goPage('pg-admin')">
-      <span class="snav-icon">🔑</span> Admin quỹ
+      <i class="ph-bold ph-key snav-icon"></i> Admin quỹ
     </button>
     <button class="snav-item" onclick="openDiscountSettings()" style="color:var(--muted)">
-      <span class="snav-icon">⚙️</span> Cài đặt ưu đãi
+      <i class="ph-bold ph-gear snav-icon"></i> Cài đặt ưu đãi
     </button>
   </div>
   <div id="sidebar-user">
     <div id="snav-bg-admin" style="display:none">
       <button onclick="triggerBgPicker()" class="snav-item" style="color:var(--muted)">
-        <span class="snav-icon">🖼️</span> Đổi hình nền
+        <i class="ph-bold ph-image snav-icon"></i> Đổi hình nền
       </button>
       <button onclick="openBgAdjust()" class="snav-item" style="color:var(--muted)">
-        <span class="snav-icon">🔍</span> Chỉnh vị trí
+        <i class="ph-bold ph-magnifying-glass snav-icon"></i> Chỉnh vị trí
       </button>
       <button onclick="removeBgImage()" class="snav-item" style="color:var(--muted);font-size:12px">
-        <span class="snav-icon">🗑️</span> Xoá hình nền
+        <i class="ph-bold ph-trash snav-icon"></i> Xoá hình nền
       </button>
     </div>
     <button onclick="doExit()" class="snav-item" style="color:var(--muted)">
-      <span class="snav-icon">🚪</span> Đổi SĐT
+      <i class="ph-bold ph-sign-out snav-icon"></i> Đổi SĐT
     </button>
   </div>
 </div>
@@ -522,7 +528,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
      TRANG: LOADING SPLASH
 ══════════════════════════════ -->
 <div class="page active" id="pg-splash" style="background:transparent;align-items:center;justify-content:center;flex-direction:column;gap:16px">
-  <div style="font-size:52px">🏸</div>
+  <svg viewBox="0 0 48 48" width="64" height="64" fill="none" xmlns="http://www.w3.org/2000/svg" style="opacity:.9"><circle cx="24" cy="36" r="7" fill="#c8ff47" opacity=".9"/><line x1="24" y1="29" x2="24" y2="10" stroke="#c8ff47" stroke-width="2.5" stroke-linecap="round"/><line x1="24" y1="10" x2="14" y2="4" stroke="#c8ff47" stroke-width="2" stroke-linecap="round" opacity=".7"/><line x1="24" y1="10" x2="19" y2="3" stroke="#c8ff47" stroke-width="2" stroke-linecap="round" opacity=".7"/><line x1="24" y1="10" x2="24" y2="2" stroke="#c8ff47" stroke-width="2" stroke-linecap="round" opacity=".7"/><line x1="24" y1="10" x2="29" y2="3" stroke="#c8ff47" stroke-width="2" stroke-linecap="round" opacity=".7"/><line x1="24" y1="10" x2="34" y2="4" stroke="#c8ff47" stroke-width="2" stroke-linecap="round" opacity=".7"/></svg>
   <div class="spin"></div>
 </div>
 
@@ -538,7 +544,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </p>
 
     <div id="warn-cfg" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:12px;padding:14px;margin-bottom:20px;font-size:13px;color:var(--red)">
-      ⚠️ Chưa điền Supabase URL / Key trong file HTML
+      <i class="ph-bold ph-warning"></i> Chưa điền Supabase URL / Key trong file HTML
     </div>
 
     <!-- Quick login card (hiện khi có tài khoản đã lưu) -->
@@ -555,7 +561,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         style="width:100%;padding:13px;border-radius:12px;background:var(--accent);border:none;
         color:#080d00;font-family:'Be Vietnam Pro',sans-serif;font-size:15px;font-weight:700;cursor:pointer;
         display:flex;align-items:center;justify-content:center;gap:8px">
-        ⚡ Tiếp tục với tài khoản này
+        <i class="ph-bold ph-lightning"></i> Tiếp tục với tài khoản này
       </button>
       <button onclick="showNewLogin()"
         style="width:100%;margin-top:8px;padding:10px;border-radius:12px;background:none;
@@ -604,20 +610,20 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
   <div class="hdr">
     <div style="flex:1">
       <div class="logo" style="font-size:22px;padding-bottom:4px">Cầu <span>Lông</span> <span style="color:#106B3C">KTH</span></div>
-      <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span> 👋
+      <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span>
         · Quỹ tôi: <span id="home-balance" style="font-weight:700;color:#a78bfa">—</span>
         · Tổng: <span id="home-total-fund" style="font-weight:700;color:#a78bfa">—</span>
       </div>
     </div>
-    <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền">🖼️</button>
+    <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền"><i class="ph-bold ph-image"></i></button>
     <button class="btn-ghost" onclick="doExit()" style="padding:7px 12px;font-size:12px">Đổi SĐT</button>
   </div>
   <div class="content">
     <!-- Tabs: Đang mở / Của tôi -->
     <div class="tabs" style="margin-bottom:16px;position:sticky;top:0;z-index:10;background:rgba(13,15,20,0.80);backdrop-filter:blur(10px);padding:8px 0 4px;margin-top:-8px">
-      <button class="tab active" id="tab-open" onclick="switchHomeTab('open')">🏸 Đang mở</button>
-      <button class="tab" id="tab-mine" onclick="switchHomeTab('mine')">📋 Của tôi</button>
-      <button class="tab" id="tab-all" onclick="switchHomeTab('all')" style="display:none">📂 Tất cả</button>
+      <button class="tab active" id="tab-open" onclick="switchHomeTab('open')"><i class="ph-bold ph-calendar-check"></i> Đang mở</button>
+      <button class="tab" id="tab-mine" onclick="switchHomeTab('mine')"><i class="ph-bold ph-bookmark-simple"></i> Của tôi</button>
+      <button class="tab" id="tab-all" onclick="switchHomeTab('all')" style="display:none"><i class="ph-bold ph-folder-open"></i> Tất cả</button>
     </div>
     <div id="home-list"></div>
   </div>
@@ -640,8 +646,8 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="fg">
       <label class="fl">Địa điểm</label>
       <div style="position:relative">
-        <input class="fi" id="c-loc" type="text" placeholder="🔍 Gõ tên sân để tìm..." autocomplete="off" style="padding-right:42px">
-        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none;opacity:.6">📍</span>
+        <input class="fi" id="c-loc" type="text" placeholder="Gõ tên sân để tìm..." autocomplete="off" style="padding-right:42px">
+        <i class="ph-bold ph-map-pin" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none;opacity:.5;color:var(--accent)"></i>
       </div>
     </div>
     <div class="fg">
@@ -652,7 +658,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div class="fg"><label class="fl">Phí sân (đ)</label><input class="fi" id="c-fee" type="number" placeholder="300000"></div>
       <div class="fg"><label class="fl">Số người tối đa</label><input class="fi" id="c-max" type="number" value="10"></div>
     </div>
-    <button class="btn" onclick="doCreate()">🏸 Tạo & chia sẻ mã mời</button>
+    <button class="btn" onclick="doCreate()"><i class="ph-bold ph-paper-plane-tilt"></i> Tạo & chia sẻ mã mới</button>
     <p style="font-size:12px;color:var(--muted);margin-top:12px;text-align:center">Sau khi tạo, buổi hiện ngay trên trang chủ của tất cả thành viên</p>
   </div>
 </div>
@@ -666,14 +672,14 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="hdr-title" id="s-hdr">Buổi chơi</div>
     <div style="display:flex;gap:8px;align-items:center">
       <div id="host-edit-btn" style="display:none">
-        <button class="btn-ghost" style="padding:7px 12px;font-size:12px" onclick="openEditSheet()">✏️ Sửa</button>
+        <button class="btn-ghost" style="padding:7px 12px;font-size:12px" onclick="openEditSheet()"><i class="ph-bold ph-pencil-simple"></i> Sửa</button>
       </div>
       <div id="host-close-btn" style="display:none;display:flex;gap:6px">
-        <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--accent2);border-color:rgba(71,212,255,.35)" onclick="doCloseBinhChon()">🔒 Khóa bình chọn</button>
-        <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--accent);border-color:rgba(200,255,71,.35)" onclick="doClose()">💰 Chia tiền</button>
+        <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--accent2);border-color:rgba(71,212,255,.35)" onclick="doCloseBinhChon()"><i class="ph-bold ph-lock-simple"></i> Khóa BC</button>
+        <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--accent);border-color:rgba(200,255,71,.35)" onclick="doClose()"><i class="ph-bold ph-money"></i> Chia tiền</button>
       </div>
       <div id="host-cancel-btn" style="display:none">
-        <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--red);border-color:rgba(239,68,68,.3)" onclick="openCancelModal()">🗑 Huỷ</button>
+        <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:var(--red);border-color:rgba(239,68,68,.3)" onclick="openCancelModal()"><i class="ph-bold ph-trash"></i> Huỷ</button>
       </div>
     </div>
   </div>
@@ -697,9 +703,9 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 
     <!-- Tabs: Bình chọn / Đã xác nhận / Chi phí -->
     <div class="tabs" id="session-tabs" style="display:grid;grid-template-columns:1fr 1fr 1fr">
-      <button class="tab active" id="stab-vote" onclick="switchSessionTab('vote')">🗳 Bình chọn</button>
-      <button class="tab" id="stab-voted" onclick="switchSessionTab('voted')">✅ Đã vote <span id="voted-count-badge" style="background:rgba(200,255,71,.2);color:var(--accent);border-radius:10px;padding:1px 6px;font-size:10px;margin-left:2px"></span></button>
-      <button class="tab" id="stab-exp" onclick="switchSessionTab('exp')">💰 Chi phí</button>
+      <button class="tab active" id="stab-vote" onclick="switchSessionTab('vote')"><i class="ph-bold ph-check-square"></i> Bình chọn</button>
+      <button class="tab" id="stab-voted" onclick="switchSessionTab('voted')"><i class="ph-bold ph-check-circle"></i> Đã vote <span id="voted-count-badge" style="background:rgba(200,255,71,.2);color:var(--accent);border-radius:10px;padding:1px 6px;font-size:10px;margin-left:2px"></span></button>
+      <button class="tab" id="stab-exp" onclick="switchSessionTab('exp')"><i class="ph-bold ph-coins"></i> Chi phí</button>
     </div>
 
     <!-- TAB: Bình chọn thành viên -->
@@ -711,7 +717,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div id="guest-mgmt-wrap" style="display:none;margin-top:4px">
         <div class="sec" style="margin-top:20px;margin-bottom:8px">
           <div class="sec-t" style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:16px">👤</span> Khách vãng lai
+            <i class="ph-bold ph-user-circle" style="font-size:16px"></i> Khách vãng lai
             <span id="guest-count-badge" style="background:rgba(255,107,71,.15);color:var(--accent3);border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700"></span>
           </div>
         </div>
@@ -776,9 +782,9 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="fg">
       <label class="fl">Loại chia</label>
       <div class="split-opts">
-        <div class="split-opt active" id="sopt-all"      onclick="setSplitType('all')">🌐 Chia đều<br><span style="font-weight:400;font-size:10px">tất cả người</span></div>
-        <div class="split-opt"        id="sopt-selected" onclick="setSplitType('selected')">👥 Chia chọn<br><span style="font-weight:400;font-size:10px">một số người</span></div>
-        <div class="split-opt"        id="sopt-personal" onclick="setSplitType('personal')">🎯 Gán riêng<br><span style="font-weight:400;font-size:10px">số tiền cụ thể</span></div>
+        <div class="split-opt active" id="sopt-all"      onclick="setSplitType('all')"><i class="ph-bold ph-equals"></i> Chia đều<br><span style="font-weight:400;font-size:10px">tất cả người</span></div>
+        <div class="split-opt"        id="sopt-selected" onclick="setSplitType('selected')"><i class="ph-bold ph-users-three"></i> Chia chọn<br><span style="font-weight:400;font-size:10px">một số người</span></div>
+        <div class="split-opt"        id="sopt-personal" onclick="setSplitType('personal')"><i class="ph-bold ph-target"></i> Gán riêng<br><span style="font-weight:400;font-size:10px">số tiền cụ thể</span></div>
       </div>
     </div>
 
@@ -798,7 +804,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 <div class="sheet-bg" id="edit-session-bg" onclick="closeEditSheet(event)">
   <div class="sheet" onclick="event.stopPropagation()">
     <div class="sheet-handle"></div>
-    <div style="font-size:17px;font-weight:800;margin-bottom:18px">✏️ Chỉnh sửa buổi</div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:18px"><i class="ph-bold ph-pencil-simple"></i> Chỉnh sửa buổi</div>
 
     <div class="fg"><label class="fl">Tên buổi</label>
       <input class="fi" id="edit-title" placeholder="VD: Cầu lông thứ 5">
@@ -813,8 +819,8 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </div>
     <div class="fg"><label class="fl">Địa điểm</label>
       <div style="position:relative">
-        <input class="fi" id="edit-loc" type="text" placeholder="🔍 Gõ tên sân để tìm..." autocomplete="off" style="padding-right:42px">
-        <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none;opacity:.6">📍</span>
+        <input class="fi" id="edit-loc" type="text" placeholder="Gõ tên sân để tìm..." autocomplete="off" style="padding-right:42px">
+        <i class="ph-bold ph-map-pin" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none;opacity:.5;color:var(--accent)"></i>
       </div>
     </div>
     <div class="fg">
@@ -851,10 +857,10 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 <div class="sheet-bg" id="add-member-sheet-bg" onclick="closeAddMemberSheet(event)">
   <div class="sheet" onclick="event.stopPropagation()" style="max-height:88vh;display:flex;flex-direction:column;padding-bottom:0">
     <div class="sheet-handle"></div>
-    <div style="font-size:17px;font-weight:800;margin-bottom:4px">👥 Thêm thành viên vào buổi</div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:4px"><i class="ph-bold ph-users"></i> Thêm thành viên vào buổi</div>
     <div style="color:var(--muted);font-size:13px;margin-bottom:12px">Chọn một hoặc nhiều thành viên rồi bấm <strong style="color:var(--accent2)">Đồng ý</strong></div>
     <div style="margin-bottom:10px">
-      <input class="fi" id="add-member-search" type="text" placeholder="🔍 Tìm theo tên..."
+      <input class="fi" id="add-member-search" type="text" placeholder="Tìm theo tên..."
         oninput="filterAddMemberList(this.value)"
         style="padding:11px 14px;font-size:14px">
     </div>
@@ -879,7 +885,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 <div class="overlay" id="cancel-session-overlay" style="z-index:600">
   <div style="background:var(--bg2);border:1px solid rgba(239,68,68,.35);border-radius:20px;
     padding:28px 24px;max-width:360px;width:90%;text-align:center;position:relative">
-    <div style="font-size:44px;margin-bottom:12px">🗑</div>
+    <div style="font-size:44px;margin-bottom:12px"><i class="ph-bold ph-trash" style="color:var(--red)"></i></div>
     <div style="font-size:18px;font-weight:800;margin-bottom:8px">Huỷ buổi vote?</div>
     <div style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:22px">
       Toàn bộ dữ liệu vote của buổi <strong id="cancel-session-name" style="color:var(--text)"></strong>
@@ -936,7 +942,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div id="guest-pay-section" style="display:none">
       <div class="sec" style="margin-top:20px">
         <div class="sec-t" style="display:flex;align-items:center;gap:6px">
-          <span>👤</span> Khách vãng lai
+          <i class="ph-bold ph-user-circle"></i> Khách vãng lai
           <span style="background:rgba(255,107,71,.15);color:var(--accent3);border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700">Tiền mặt</span>
         </div>
       </div>
@@ -954,7 +960,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div style="flex:1"><div class="hdr-title">Quỹ của tôi</div></div>
     <div id="admin-panel-btn" style="display:none">
       <button class="btn-ghost" style="padding:7px 12px;font-size:12px;color:#a78bfa;border-color:rgba(167,139,250,.3)"
-        onclick="goPage('pg-admin')">🔑 Admin</button>
+        onclick="goPage('pg-admin')"><i class="ph-bold ph-key"></i> Admin</button>
     </div>
   </div>
   <div class="content">
@@ -964,7 +970,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div class="fund-bal" id="fund-balance">0đ</div>
       <div style="color:var(--muted);font-size:12px;margin-top:6px" id="fund-status-text"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-between">
-        <span style="color:var(--muted);font-size:12px">🏦 Tổng quỹ chung</span>
+        <span style="color:var(--muted);font-size:12px"><i class="ph-bold ph-bank"></i> Tổng quỹ chung</span>
         <span id="fund-total-all" style="font-size:14px;font-weight:700;color:#a78bfa">—</span>
       </div>
     </div>
@@ -999,19 +1005,19 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
         border-radius:14px;background:rgba(200,255,71,.08);border:1px solid rgba(200,255,71,.2);
         color:var(--accent);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
-        <span style="font-size:22px">⚙️</span>Cài đặt ưu đãi
+        <i class="ph-bold ph-sliders" style="font-size:22px"></i>Cài đặt ưu đãi
       </button>
       <button onclick="triggerBgPicker()"
         style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
         border-radius:14px;background:rgba(71,212,255,.08);border:1px solid rgba(71,212,255,.2);
         color:var(--accent2);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
-        <span style="font-size:22px">🖼️</span>Đổi hình nền
+        <i class="ph-bold ph-image" style="font-size:22px"></i>Đổi hình nền
       </button>
       <button onclick="openBgAdjust()"
         style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
         border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
         color:var(--muted);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
-        <span style="font-size:22px">🔍</span>Chỉnh vị trí
+        <i class="ph-bold ph-crop" style="font-size:22px"></i>Chỉnh vị trí
       </button>
     </div>
     <!-- Tổng quỹ -->
@@ -1024,8 +1030,8 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <!-- Tabs admin -->
     <div class="tabs">
       <button class="tab active" id="atab-pending" onclick="switchAdminTab('pending')">⏳ Chờ duyệt <span id="pending-badge" style="background:rgba(251,191,36,.2);color:#fbbf24;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:3px"></span></button>
-      <button class="tab" id="atab-members" onclick="switchAdminTab('members')">👥 Thành viên</button>
-      <button class="tab" id="atab-history" onclick="switchAdminTab('history')">📋 Lịch sử</button>
+      <button class="tab" id="atab-members" onclick="switchAdminTab('members')"><i class="ph-bold ph-users"></i> Thành viên</button>
+      <button class="tab" id="atab-history" onclick="switchAdminTab('history')"><i class="ph-bold ph-clock-counter-clockwise"></i> Lịch sử</button>
     </div>
 
     <div id="admin-pane-pending">
@@ -1052,7 +1058,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 
     <!-- BƯỚC 1: Nhập số tiền -->
     <div id="dep-step-1">
-      <div style="font-size:17px;font-weight:800;margin-bottom:6px">🏦 Đóng quỹ</div>
+      <div style="font-size:17px;font-weight:800;margin-bottom:6px"><i class="ph-bold ph-bank"></i> Đóng quỹ</div>
       <div style="color:var(--muted);font-size:13px;margin-bottom:18px">Nhập số tiền — app sẽ tạo mã QR để chuyển khoản tự động</div>
       <div class="fg">
         <label class="fl">Số tiền đóng quỹ (đ)</label>
@@ -1063,7 +1069,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         <input class="fi" id="dep-note" type="text" placeholder="VD: Đóng quỹ tháng 3">
       </div>
       <button class="btn" onclick="startDeposit()" style="background:#a78bfa;color:#0a0520">
-        📲 Tạo mã QR chuyển khoản
+        <i class="ph-bold ph-qr-code"></i> Tạo mã QR chuyển khoản
       </button>
     </div>
 
@@ -1146,7 +1152,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         style="padding:16px;border-radius:14px;background:rgba(71,212,255,.1);border:1px solid rgba(71,212,255,.3);
         color:var(--accent2);font-family:'Be Vietnam Pro',sans-serif;font-size:15px;font-weight:700;cursor:pointer;
         display:flex;align-items:center;gap:10px">
-        <span style="font-size:22px">💸</span>
+        <i class="ph-bold ph-money-wavy" style="font-size:22px"></i>
         <div style="text-align:left">
           <div>Chuyển khoản</div>
           <div style="font-size:11px;font-weight:400;opacity:.7">Tự chuyển tiền và upload hóa đơn</div>
@@ -1156,7 +1162,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         style="padding:16px;border-radius:14px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.3);
         color:#a78bfa;font-family:'Be Vietnam Pro',sans-serif;font-size:15px;font-weight:700;cursor:pointer;
         display:flex;align-items:center;gap:10px">
-        <span style="font-size:22px">🏦</span>
+        <i class="ph-bold ph-bank" style="font-size:22px"></i>
         <div style="text-align:left">
           <div>Trừ vào quỹ</div>
           <div style="font-size:11px;font-weight:400;opacity:.7" id="fund-pay-note">Tự động trừ từ số dư quỹ</div>
@@ -1172,7 +1178,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
 <div class="overlay" id="low-fund-overlay" style="z-index:600">
   <div style="background:var(--bg2);border:1px solid rgba(239,68,68,.35);border-radius:20px;
     padding:28px 24px;max-width:360px;width:90%;text-align:center;position:relative">
-    <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+    <div style="font-size:48px;margin-bottom:12px"><i class="ph-bold ph-warning" style="color:var(--accent3)"></i></div>
     <div style="font-size:18px;font-weight:800;color:var(--red);margin-bottom:8px">Quỹ bị âm!</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Số dư quỹ của bạn hiện tại:</div>
     <div id="lf-amount" style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
@@ -1182,7 +1188,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <button onclick="closeLowFundModal();goPage('pg-fund');openDepositSheet()"
         style="width:100%;padding:14px;border-radius:14px;background:#a78bfa;border:none;
         color:#0a0520;font-family:'Be Vietnam Pro',sans-serif;font-size:15px;font-weight:700;cursor:pointer">
-        🏦 Đóng quỹ ngay
+        <i class="ph-bold ph-bank"></i> Đóng quỹ ngay
       </button>
       <button onclick="closeLowFundModal()"
         style="width:100%;padding:12px;border-radius:14px;background:var(--bg3);
@@ -1210,7 +1216,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     </div>
 
     <div class="receipt-upload" onclick="triggerTransferReceipt()" id="transfer-upload-zone">
-      <div style="font-size:28px;margin-bottom:6px">📷</div>
+      <div style="margin-bottom:6px"><i class="ph-bold ph-camera" style="font-size:28px;color:var(--muted)"></i></div>
       <div style="font-size:13px;font-weight:600;margin-bottom:3px" id="transfer-upload-lbl">Đính kèm ảnh hóa đơn</div>
       <div style="font-size:11px;color:var(--muted)">Chụp màn hình chuyển khoản (bắt buộc)</div>
     </div>
@@ -1227,7 +1233,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         style="flex:2;padding:13px;border-radius:12px;background:var(--green);border:none;
         color:#fff;font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:700;cursor:pointer;
         display:flex;align-items:center;justify-content:center;gap:6px;opacity:.4" disabled>
-        <span>💸</span> Xác nhận đã chuyển
+        <i class="ph-bold ph-check-circle"></i> Xác nhận đã chuyển
       </button>
     </div>
     <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px">
@@ -1379,7 +1385,7 @@ async function quickLogin() {
   if (isDesktop()) initDesktopLayout();
     document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
-    toast(`Chào ${me.name}! 🏸`, 'ok');
+    toast(`Chào mừng ${me.name}!`, 'ok');
     startAllRealtime();
     goPage('pg-home');
     setTimeout(checkAndShowLowFundAlert, 800);
@@ -1539,7 +1545,7 @@ async function doEnter() {
   document.getElementById('admin-panel-btn').style.display = me.is_admin ? '' : 'none';
   const _gnavAdmin = document.getElementById('gnav-admin'); if (_gnavAdmin) _gnavAdmin.style.display = me.is_admin ? 'flex' : 'none';
   load(false);
-  toast(`Chào ${me.name}! 🏸`,'ok');
+  toast(`Chào mừng ${me.name}!`,'ok');
   startAllRealtime();
   goPage('pg-home');
   refreshTotalFundDisplay();
@@ -1720,7 +1726,7 @@ async function loadHome() {
     const sessions = [...(votingSessions||[]), ...lockedVotedSessions];
 
     if (!sessions.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-icon">🏸</div><div>Chưa có buổi bình chọn nào đang mở.<br>Bấm <strong style="color:var(--accent)">Tạo buổi</strong> để bắt đầu!</div></div>';
+      el.innerHTML = '<div class="empty"><div class="empty-icon"><i class="ph-bold ph-calendar"></i></div><div>Chưa có buổi bình chọn nào đang mở.<br>Bấm <strong style="color:var(--accent)">Tạo buổi</strong> để bắt đầu!</div></div>';
       return;
     }
     const sids = sessions.map(s => s.id);
@@ -1744,7 +1750,7 @@ async function loadHome() {
       .select('*, profiles!host_id(name)')
       .order('created_at', { ascending: false });
     if (!allSessions?.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-icon">📂</div><div>Chưa có buổi nào</div></div>';
+      el.innerHTML = '<div class="empty"><div class="empty-icon"><i class="ph-bold ph-folder-open"></i></div><div>Chưa có buổi nào</div></div>';
       return;
     }
     const sidsA = allSessions.map(s => s.id);
@@ -1767,13 +1773,13 @@ async function loadHome() {
     const { data: memberOf } = await db.from('session_members').select('session_id').eq('user_id',me.id);
     const ids = [...new Set((memberOf||[]).map(m=>m.session_id))];
     if (!ids.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div>Bạn chưa tham gia buổi nào.<br>Vào tab <strong style="color:var(--accent)">Đang mở</strong> để vote!</div></div>';
+      el.innerHTML = '<div class="empty"><div class="empty-icon"><i class="ph-bold ph-clipboard-text"></i></div><div>Bạn chưa tham gia buổi nào.<br>Vào tab <strong style="color:var(--accent)">Đang mở</strong> để vote!</div></div>';
       return;
     }
     const { data: sessions } = await db.from('sessions')
       .select('*, profiles!host_id(name)')
       .in('id',ids).order('created_at',{ascending:false});
-    if (!sessions?.length) { el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div>Chưa có buổi nào</div></div>'; return; }
+    if (!sessions?.length) { el.innerHTML = '<div class="empty"><div class="empty-icon"><i class="ph-bold ph-clipboard-text"></i></div><div>Chưa có buổi nào</div></div>'; return; }
     const sids2 = sessions.map(s => s.id);
     const [{ data: voteRows2 }, { data: memberRows2 }, { data: guestRows2 }] = await Promise.all([
       db.from('votes').select('session_id,voter_id,target_id').in('session_id', sids2),
@@ -1808,7 +1814,7 @@ function renderSessionCard(s, confirmedCount=0, totalCount=0, iVoted=false, gues
   const isCancelled = s.status === 'cancelled';
   let badgeBg, badgeColor, badgeText;
   if (iVoted && isVoting) {
-    badgeBg='rgba(167,139,250,.18)'; badgeColor='#c4b5fd'; badgeText='✓ Đã vote';
+    badgeBg='rgba(167,139,250,.18)'; badgeColor='#c4b5fd'; badgeText='<i class="ph-bold ph-check"></i> Đã vote';
   } else if (isVoting) {
     badgeBg='rgba(200,255,71,.14)'; badgeColor='var(--accent)'; badgeText='Đang mở';
   } else if (isCancelled) {
@@ -1870,7 +1876,7 @@ function renderSessionCard(s, confirmedCount=0, totalCount=0, iVoted=false, gues
                   onclick="event.stopPropagation()"
                   style="color:var(--accent2);text-decoration:none;display:inline-flex;align-items:center;gap:4px;
                   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">
-                  📍 ${locParseName(s.location)||s.title}
+                  <i class="ph-bold ph-map-pin"></i> ${locParseName(s.location)||s.title}
                 </a>`
               : `<span style="color:var(--text)">${locParseName(s.location)||s.title}</span>`
             }
@@ -1918,7 +1924,7 @@ async function doCreate() {
   load(false);
   ['c-title','c-date','c-loc','c-court','c-fee'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('c-max').value='10';
-  toast('Tạo buổi thành công! Đang hiển thị cho mọi người 🎉','ok');
+  toast('Tạo buổi thành công!','ok');
   openSession(session.id);
 }
 
@@ -2022,7 +2028,7 @@ function renderSession() {
   if (_slName && _slHref) {
     _slEl.innerHTML = `<a href="${_slHref}" target="_blank" rel="noopener"
       style="color:var(--accent2);text-decoration:none;border-bottom:1px dashed rgba(71,212,255,.4);cursor:pointer">
-      📍 ${_slName}</a>`;
+      <i class="ph-bold ph-map-pin"></i> ${_slName}</a>`;
   } else {
     _slEl.textContent = _slName || '—';
   }
@@ -2084,7 +2090,7 @@ function renderSession() {
     reopenBtn.id = 'btn-reopen-vote';
     reopenBtn.className = 'btn-ghost';
     reopenBtn.style.cssText = 'padding:7px 12px;font-size:12px;color:var(--accent2);border-color:rgba(71,212,255,.35)';
-    reopenBtn.textContent = '🔓 Mở lại BC';
+    reopenBtn.textContent = '<i class="ph-bold ph-lock-open"></i> Mở lại BC';
     reopenBtn.onclick = doReopenVote;
     document.getElementById('host-close-btn').appendChild(reopenBtn);
   } else if (reopenBtn) {
@@ -2124,13 +2130,13 @@ function renderSession() {
               background:rgba(239,68,68,.1);border:2px solid rgba(239,68,68,.4);
               color:var(--red);font-family:'Be Vietnam Pro',sans-serif;font-size:16px;font-weight:700;
               cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">
-            <span style="font-size:22px">❌</span> Huỷ tham gia
+            <i class="ph-bold ph-x-circle" style="font-size:20px"></i> Huỷ tham gia
           </button>`
         : `<button onclick="doVote()" style="width:100%;padding:18px;border-radius:16px;
               background:rgba(34,197,94,.15);border:2px solid rgba(34,197,94,.45);
               color:var(--green);font-family:'Be Vietnam Pro',sans-serif;font-size:16px;font-weight:700;
               cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px">
-            <span style="font-size:22px">🏸</span> Tôi sẽ tham gia
+            <i class="ph-bold ph-check-circle" style="font-size:20px;color:var(--accent)"></i> Tôi sẽ tham gia
           </button>`}
     </div>`;
 
@@ -2149,13 +2155,13 @@ function renderSession() {
           ${joined
             ? 'background:rgba(200,255,71,.12);border:1px solid rgba(200,255,71,.35);color:var(--accent)'
             : 'background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.2);color:var(--muted)'}">
-          ${joined ? '✅ Tham gia' : '⬜ Xác nhận'}
+          ${joined ? '<i class="ph-bold ph-check"></i> Tham gia' : '<i class="ph-bold ph-circle"></i> Xác nhận'}
         </button>
         <button onclick="adminRemoveMember('${uid}','${name}')"
           title="Xoá khỏi buổi"
           style="padding:5px 8px;border-radius:8px;font-size:11px;cursor:pointer;flex-shrink:0;
           background:none;border:1px solid rgba(239,68,68,.2);color:var(--red)">✕</button>
-      </div>` : `<span style="font-size:22px">${joined ? '✅' : '⬜'}</span>`;
+      </div>` : `<span style="font-size:22px">${joined ? '<i class="ph-bold ph-check-circle" style="color:var(--green)"></i>' : '<i class="ph ph-circle" style="opacity:.4"></i>'}</span>`;
 
     return `
       <div class="mrow ${joined ? 'has-voted-border' : ''}">
@@ -2171,7 +2177,7 @@ function renderSession() {
         </div>
         ${hostControls}
       </div>`;
-  }).join('') || '<div class="empty"><div class="empty-icon">👥</div><div>Chưa có thành viên nào</div></div>';
+  }).join('') || '<div class="empty"><div class="empty-icon"><i class="ph-bold ph-users"></i></div><div>Chưa có thành viên nào</div></div>';
 
   // Nút thêm thành viên (admin only, buổi đang mở)
   const totalParticipants = confirmedCount + (curSession.guests||[]).length;
@@ -2182,7 +2188,7 @@ function renderSession() {
       ? `<div style="margin-top:8px;width:100%;padding:11px;border-radius:12px;
           background:rgba(239,68,68,.07);border:1px dashed rgba(239,68,68,.3);
           color:var(--red);font-size:12px;text-align:center">
-          🔒 Đã đủ ${session.max_players}/${session.max_players} người — không thể thêm</div>`
+          <i class="ph-bold ph-lock-simple"></i> Đã đủ ${session.max_players}/${session.max_players} người — không thể thêm</div>`
       : `<button onclick="openAddMemberSheet()"
           style="margin-top:8px;width:100%;padding:11px;border-radius:12px;
           background:rgba(71,212,255,.08);border:1px dashed rgba(71,212,255,.3);
@@ -2193,7 +2199,7 @@ function renderSession() {
   document.getElementById('vote-list').innerHTML = myBtn + memberRows + addMemberBtn;
 
   document.getElementById('pay-btn-wrap').innerHTML = isClosed
-    ? `<button class="btn" style="background:var(--accent2);color:#040e18;margin-top:4px" onclick="openPayment()">💰 Xem thanh toán</button>`
+    ? `<button class="btn" style="background:var(--accent2);color:#040e18;margin-top:4px" onclick="openPayment()"><i class="ph-bold ph-receipt"></i> Xem thanh toán</button>`
     : '';
 
   // ── TAB: Đã xác nhận / Chưa xác nhận ──
@@ -2651,11 +2657,11 @@ async function renderExpenses() {
   const expList = document.getElementById('exp-list');
   if (!expenses?.length) {
     expList.innerHTML = `<div class="empty" style="padding:28px 20px">
-      <div style="font-size:36px;margin-bottom:8px">💸</div>
+      <div style="margin-bottom:8px"><i class="ph-bold ph-money-wavy" style="font-size:36px;color:var(--accent)"></i></div>
       <div style="font-size:13px">${isHost && !isClosed ? 'Bấm "+ Thêm khoản" để tạo đầu mục chi phí' : 'Chưa có khoản chi phí nào'}</div>
     </div>`;
     document.getElementById('exp-summary').style.display = 'none';
-    document.getElementById('exp-hint').textContent = isVoteClosed ? '⚠️ Bình chọn đã khóa — thêm chi phí xong rồi bấm 💰 Chia tiền' : '';
+    document.getElementById('exp-hint').textContent = isVoteClosed ? '<i class="ph-bold ph-warning"></i> Bình chọn đã khóa — thêm chi phí xong rồi bấm Chia tiền' : '';
     return;
   }
 
@@ -2687,7 +2693,7 @@ async function renderExpenses() {
   expList.innerHTML = expenses.map(e => {
     const cls   = e.split_type === 'all' ? 'exp-all' : e.split_type === 'selected' ? 'exp-sel' : 'exp-pers';
     const bCls  = e.split_type === 'all' ? 'exp-badge-all' : e.split_type === 'selected' ? 'exp-badge-sel' : 'exp-badge-pers';
-    const label = e.split_type === 'all' ? '🌐 Chia đều' : e.split_type === 'selected' ? '👥 Chia chọn' : '🎯 Gán riêng';
+    const label = e.split_type === 'all' ? '<i class="ph-bold ph-equals"></i> Chia đều' : e.split_type === 'selected' ? '<i class="ph-bold ph-users-three"></i> Chia chọn' : '<i class="ph-bold ph-target"></i> Gán riêng';
     const assigns      = e.expense_assignments || [];
     const guestAssigns = e.guest_expense_assignments || [];
     const guests       = curSession.guests || [];
@@ -2697,7 +2703,7 @@ async function renderExpenses() {
     });
     const guestAssignedNames = guestAssigns.map(a => {
       const g = guests.find(x => x.id === a.guest_id);
-      return (g?.name || '?') + ' 👤';
+      return (g?.name || '?') + ' <i class="ph ph-user"></i>';
     });
 
     let subInfo = '';
@@ -2714,7 +2720,7 @@ async function renderExpenses() {
       });
       const guestParts = guestAssigns.map(a => {
         const g = guests.find(x => x.id === a.guest_id);
-        return `${g?.name||'?'} 👤: ${fmt(a.amount)}`;
+        return `${g?.name||'?'} <i class="ph ph-user"></i>: ${fmt(a.amount)}`;
       });
       subInfo = [...memberParts, ...guestParts].join(' · ') || 'Chưa gán';
     }
@@ -2807,7 +2813,7 @@ function renderExpSummary(expenses, members, session) {
     <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--muted)">Dự kiến mỗi người trả</div>
     ${memberRows}
     ${guestRows}
-    ${guests.length ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">👤 Khách vãng lai thu tiền mặt — không tính vào quỹ</div>` : ''}
+    ${guests.length ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;padding-top:6px;border-top:1px solid var(--border)"><i class="ph ph-user-circle"></i> Khách vãng lai thu tiền mặt — không tính vào quỹ</div>` : ''}
   </div>`;
 }
 
@@ -2909,7 +2915,7 @@ function renderMemberPicker() {
   }).join('');
 
   const divider = guests.length && pool.length
-    ? `<div style="font-size:10px;color:var(--muted);padding:6px 2px;font-weight:600;text-transform:uppercase;letter-spacing:.4px">👤 Khách vãng lai</div>`
+    ? `<div style="font-size:10px;color:var(--muted);padding:6px 2px;font-weight:600;text-transform:uppercase;letter-spacing:.4px"><i class="ph ph-user-circle"></i> Khách vãng lai</div>`
     : '';
 
   document.getElementById('member-picker').innerHTML =
@@ -3261,16 +3267,14 @@ async function autoDeductFundForSession(picked, session) {
   const POOL_CONTRIBUTION = 15000; // 15k mỗi thành viên CLB
 
   // ── Bước 1: Lấy TẤT CẢ thành viên CLB và trừ 15k ──
-  const { data: allProfiles } = await db.from('profiles').select('id, name, fund_balance, is_banned');
+  const { data: allProfiles } = await db.from('profiles').select('id, name, fund_balance');
   if (!allProfiles?.length) return { deducted: 0, newBalForMe: null };
 
   const profileMap = {};
   allProfiles.forEach(p => { profileMap[p.id] = { name: p.name || '?', bal: p.fund_balance || 0 }; });
 
   // Trừ 15k từ tất cả thành viên CLB (kể cả người không tham gia buổi)
-  // Bỏ qua tài khoản bị khóa (is_banned = true)
   for (const prof of allProfiles) {
-    if (prof.is_banned) continue; // ← tài khoản bị khóa không bị trừ 15k
     const newBal = prof.fund_balance - POOL_CONTRIBUTION;
     await db.from('profiles').update({ fund_balance: newBal }).eq('id', prof.id);
     await db.from('fund_transactions').insert({
@@ -3440,7 +3444,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
       selfSec.innerHTML = `
         <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.3);border-radius:18px;padding:16px">
           <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:28px">🎉</span>
+            <i class="ph-bold ph-confetti" style="font-size:28px;color:var(--green)"></i>
             <div style="flex:1">
               <div style="font-size:15px;font-weight:700;color:var(--green)">Được hoàn lại vào quỹ!</div>
               <div style="font-size:12px;color:var(--muted);margin-top:2px">
@@ -3460,7 +3464,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
             style="width:100%;margin-top:14px;padding:15px;border-radius:14px;background:var(--green);border:none;
             color:#fff;font-family:'Be Vietnam Pro',sans-serif;font-size:15px;font-weight:700;cursor:pointer;
             display:flex;align-items:center;justify-content:center;gap:8px">
-            <span style="font-size:20px">💸</span> Tôi đã chuyển tiền
+            <i class="ph-bold ph-arrow-up-right" style="font-size:20px"></i> Tôi đã chuyển tiền
           </button>
           <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:8px">
             Bạn sẽ cần đính kèm ảnh hóa đơn để host xác nhận
@@ -3494,7 +3498,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
         ${assignedGuests.map(gp => `
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${assignedGuests.indexOf(gp)<assignedGuests.length-1?'5px':'0'}">
             <div style="display:flex;align-items:center;gap:6px">
-              <span style="font-size:13px">👤</span>
+              <i class="ph-bold ph-user" style="font-size:13px"></i>
               <span style="font-size:12px;color:var(--accent3);font-weight:600">${gp.session_guests?.name||'Khách'}</span>
               <span style="font-size:10px;color:var(--muted)">(bảo lãnh)</span>
             </div>
@@ -3513,7 +3517,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
     const receiptThumb = p.receipt_url
       ? `<div style="margin-top:8px;cursor:pointer" onclick="openLightbox('${p.receipt_url}')">
           <img src="${p.receipt_url}" style="width:100%;max-height:120px;object-fit:contain;border-radius:8px;background:#0a0c10">
-          <div style="font-size:10px;color:var(--muted);margin-top:3px;text-align:center">📷 Bấm để xem hóa đơn</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:3px;text-align:center"><i class="ph-bold ph-receipt"></i> Bấm để xem hóa đơn</div>
         </div>` : '';
 
     // Host controls
@@ -3595,7 +3599,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
       const assignedHtml = assignedMember
         ? `<div style="display:flex;align-items:center;gap:5px;margin-top:6px;
               padding:5px 8px;background:rgba(71,212,255,.07);border:1px solid rgba(71,212,255,.2);border-radius:8px">
-            <span style="font-size:11px">👤</span>
+            <i class="ph-bold ph-user" style="font-size:11px"></i>
             <span style="font-size:11px;color:var(--accent2);font-weight:600">${assignedMember.name}</span>
             <span style="font-size:10px;color:var(--muted)">phụ trách thu</span>
             <button onclick="unassignGuest('${gp.id}')"
@@ -3606,7 +3610,7 @@ async function openPayment(promptUpload = false, navigateTo = true) {
               style="margin-top:6px;width:100%;padding:6px 10px;border-radius:8px;
               background:rgba(71,212,255,.07);border:1px solid rgba(71,212,255,.2);color:var(--accent2);
               font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:600;cursor:pointer;text-align:left">
-              👤 Gán cho thành viên bảo lãnh
+              <i class="ph-bold ph-user-check"></i> Gán cho thành viên bảo lãnh
           </button>`;
 
       return `
@@ -4134,12 +4138,12 @@ function renderFundTxnList(txns, el, showUser) {
     const typeLabel = getTypeLabel(t);
     // Tên buổi — ưu tiên join sessions, fallback description
     const sessionName = t.sessions?.title
-      ? `<div style="font-size:11px;color:var(--accent2);margin-top:2px">🏸 ${t.sessions.title}</div>`
+      ? `<div style="font-size:11px;color:var(--accent2);margin-top:2px"><i class="ph ph-calendar-check"></i> ${t.sessions.title}</div>`
       : (t.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${t.description}</div>` : '');
     const receiptBtn = t.receipt_url
       ? `<button onclick="openLightbox('${t.receipt_url}')"
            style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;
-           font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px">📷 Xem hóa đơn</button>` : '';
+           font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px"><i class="ph-bold ph-image"></i> Xem hóa đơn</button>` : '';
     return `
       <div class="ftx-row ${stCls}">
         <div class="ftx-icon ${isIn?'ftx-in':t.status==='pending'?'ftx-pend':'ftx-out'}">${isIn?'↑':'↓'}</div>
@@ -4224,7 +4228,7 @@ function depContent(txnId) {
 function copyDepContent() {
   const content = document.getElementById('dep-transfer-content').textContent;
   navigator.clipboard.writeText(content);
-  toast('Đã sao chép nội dung CK 📋', 'ok');
+  toast('Đã sao chép nội dung CK', 'ok');
 }
 
 async function startDeposit() {
@@ -4521,7 +4525,7 @@ async function toggleAdminMemberTxn(userId, userName) {
             color:${isIn?'var(--green)':'var(--red)'}">${isIn?'↑':'↓'}</div>
           <div style="flex:1">
             <div style="font-size:12px;font-weight:600">${typeLabel}</div>
-            ${t.sessions?.title?`<div style="font-size:10px;color:var(--accent2);margin-top:1px">🏸 ${t.sessions.title}</div>`:''}
+            ${t.sessions?.title?`<div style="font-size:10px;color:var(--accent2);margin-top:1px"><i class="ph ph-calendar-check"></i> ${t.sessions.title}</div>`:''}
             <div style="font-size:10px;color:var(--muted)">${new Date(t.created_at).toLocaleString('vi-VN')} ${status}</div>
           </div>
           <div style="font-size:13px;font-weight:700;color:${isIn?'var(--green)':'var(--red)'}">
@@ -4546,7 +4550,7 @@ async function renderAdminHistory(txns) {
           <div style="display:flex;justify-content:space-between">
             <div>
               <div style="font-size:13px;font-weight:600">${t.profiles?.name||'?'} · ${typeLabel}</div>
-              ${t.sessions?.title ? `<div style="font-size:11px;color:var(--accent2);margin-top:1px">🏸 ${t.sessions.title}</div>` : ''}
+              ${t.sessions?.title ? `<div style="font-size:11px;color:var(--accent2);margin-top:1px"><i class="ph ph-calendar-check"></i> ${t.sessions.title}</div>` : ''}
               <div style="font-size:11px;color:var(--muted);margin-top:2px">${new Date(t.created_at).toLocaleDateString('vi-VN')} ${status}</div>
             </div>
             <div style="font-size:14px;font-weight:700;color:${isIn?'var(--green)':'var(--red)'}">
@@ -4633,10 +4637,10 @@ async function copyUnpaid() {
     .select('*, profiles!user_id(name)').eq('session_id',session.id).eq('is_paid',false);
   const names = (payments||[]).map(p=>p.profiles?.name||'?').join(', ');
   navigator.clipboard.writeText(`[Cầu Lông KTH] "${session.title}" – Chưa đóng tiền: ${names}`);
-  toast('Đã sao chép danh sách 📋','ok');
+  toast('Đã sao chép danh sách','ok');
 }
-function copyCode() { navigator.clipboard.writeText(curSession?.session?.code||''); toast('Đã sao chép mã mời 📋','ok'); }
-function copyLink() { navigator.clipboard.writeText(window.location.href); toast('Đã sao chép link app 🔗','ok'); }
+function copyCode() { navigator.clipboard.writeText(curSession?.session?.code||''); toast('Đã sao chép mã mời','ok'); }
+function copyLink() { navigator.clipboard.writeText(window.location.href); toast('Đã sao chép link app','ok'); }
 
 // Sync checkbox visual khi tick/untick
 document.addEventListener('DOMContentLoaded', () => {
@@ -5067,11 +5071,11 @@ async function fetchGoongAC(inputId, q, dropdown, input) {
     dropdown.innerHTML = data.predictions.map(function(p) {
       var main = p.structured_formatting ? p.structured_formatting.main_text : p.description;
       var sub  = p.structured_formatting ? p.structured_formatting.secondary_text : '';
-      return '<div data-pid="' + p.place_id + '" data-name="' + main.replace(/"/g,'&quot;') + '" data-fulladdr="' + p.description.replace(/"/g,'&quot;') + '"' +
+      return '<div data-pid="' + p.place_id + '" data-name="' + p.description.replace(/"/g,'&quot;') + '"' +
         ' style="padding:10px 14px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06)"' +
         ' onmouseover="this.style.background=\'rgba(200,255,71,.1)\'"' +
         ' onmouseout="this.style.background=\'\'">' +
-        '<div style="font-size:13px;color:#f0f2f7;font-weight:600">📍 ' + main + '</div>' +
+        '<div style="font-size:13px;color:#f0f2f7;font-weight:600"><i class="ph-bold ph-map-pin" style="color:#c8ff47"></i> ' + main + '</div>' +
         (sub ? '<div style="font-size:11px;color:#6b7280;margin-top:2px">' + sub + '</div>' : '') +
         '</div>';
     }).join('');
@@ -5115,7 +5119,7 @@ if (document.readyState === 'loading') {
   padding:16px 20px; z-index:9999; min-width:320px; max-width:92vw;
   box-shadow:0 8px 40px rgba(0,0,0,0.6);">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-    <div style="font-size:13px;font-weight:700;color:#f0f2f7">🖼️ Chỉnh vị trí hình nền</div>
+    <div style="font-size:13px;font-weight:700;color:#f0f2f7"><i class="ph-bold ph-image"></i> Chỉnh vị trí hình nền</div>
     <button onclick="closeBgAdjust()" style="background:rgba(255,255,255,.08);border:none;border-radius:8px;
       color:#9ca3af;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
   </div>
@@ -5162,10 +5166,10 @@ if (document.readyState === 'loading') {
 </div>
 
 <div class="bnav" id="global-bnav">
-  <button class="ni" id="gnav-home" onclick="goPage('pg-home')"><span class="ni-icon">🏠</span>Trang chủ</button>
-  <button class="ni" id="gnav-fund" onclick="goPage('pg-fund')"><span class="ni-icon">🏦</span>Quỹ</button>
-  <button class="ni" id="gnav-create" onclick="goPage('pg-create')"><span class="ni-icon">➕</span>Tạo buổi</button>
-  <button class="ni" id="gnav-admin" onclick="goPage('pg-admin')" style="display:none"><span class="ni-icon">🔑</span>Admin</button>
+  <button class="ni" id="gnav-home" onclick="goPage('pg-home')"><i class="ph-bold ph-house ni-icon"></i>Trang chủ</button>
+  <button class="ni" id="gnav-fund" onclick="goPage('pg-fund')"><i class="ph-bold ph-bank ni-icon"></i>Quỹ</button>
+  <button class="ni" id="gnav-create" onclick="goPage('pg-create')"><i class="ph-bold ph-plus-circle ni-icon"></i>Tạo buổi</button>
+  <button class="ni" id="gnav-admin" onclick="goPage('pg-admin')" style="display:none"><i class="ph-bold ph-key ni-icon"></i>Admin</button>
 </div>
 
 <!-- ══ PANEL CÀI ĐẶT TỶ LỆ ƯU ĐÃI ══ -->
@@ -5181,7 +5185,7 @@ if (document.readyState === 'loading') {
     <!-- Header -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
       <div>
-        <div style="font-size:15px;font-weight:700;color:#f0f2f7">⚙️ Cài đặt tỷ lệ ưu đãi</div>
+        <div style="font-size:15px;font-weight:700;color:#f0f2f7"><i class="ph-bold ph-sliders"></i> Cài đặt tỷ lệ ưu đãi</div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">Lưu 1 lần, áp dụng cho mọi buổi</div>
       </div>
       <button onclick="closeDiscountSettings()" style="background:rgba(255,255,255,.08);border:none;
@@ -5191,7 +5195,7 @@ if (document.readyState === 'loading') {
     <!-- Quỹ mỗi người -->
     <div style="margin-bottom:16px">
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">
-        💰 Quỹ đóng góp mỗi thành viên CLB
+        <i class="ph-bold ph-coins"></i> Quỹ đóng góp mỗi thành viên CLB
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <input type="number" id="ds-fund" min="0" step="1000"
@@ -5205,7 +5209,7 @@ if (document.readyState === 'loading') {
     <!-- Tỷ lệ theo vị trí -->
     <div style="margin-bottom:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="font-size:12px;color:var(--muted);font-weight:600">🏅 Tỷ lệ ưu đãi theo thứ tự bình chọn</div>
+        <div style="font-size:12px;color:var(--muted);font-weight:600"><i class="ph-bold ph-medal"></i> Tỷ lệ ưu đãi theo thứ tự bình chọn</div>
         <div style="font-size:11px;color:var(--muted)">
           Tổng: <span id="ds-total" style="font-weight:700">—</span>
         </div>
@@ -5219,7 +5223,7 @@ if (document.readyState === 'loading') {
 
     <div style="font-size:11px;color:var(--muted);margin-bottom:16px;padding:8px 10px;
       background:rgba(255,255,255,.04);border-radius:8px;line-height:1.6">
-      💡 Tổng tỷ lệ = 100% → không có phần dư. &lt; 100% → phần dư chia đều cho tất cả người tham gia. Vị trí 1 thường là host sân.
+      <i class="ph-bold ph-lightbulb"></i> Tổng tỷ lệ = 100% → không có phần dư. &lt; 100% → phần dư chia đều cho tất cả người tham gia. Vị trí 1 thường là host sân.
     </div>
 
     <!-- Buttons -->
