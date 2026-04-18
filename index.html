@@ -738,9 +738,10 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <span style="font-size:10px;color:var(--muted)">Quỹ tổng:</span>
       <span id="sidebar-total-fund" style="font-size:13px;font-weight:700;color:#bf9eff">—</span>
     </div>
-    <div id="sidebar-sc-spend" style="display:none;margin-top:2px;align-items:center;gap:4px">
-      <span style="font-size:9px;color:var(--accent)">🏸 Đã trích cầu:</span>
-      <span class="sc-spend-amt" style="font-size:10px;font-weight:700;color:var(--accent)">—</span>
+    <div id="sidebar-sc-spend" style="display:none;margin-top:2px;align-items:center;gap:4px;flex-wrap:wrap">
+      <span style="font-size:9px;color:var(--accent2)">📦 Cầu tồn kho:</span>
+      <span id="sidebar-sc-unallocated-val" style="font-size:10px;font-weight:700;color:var(--accent2)">—</span>
+      <span style="font-size:9px;color:var(--muted)">chưa phân bổ</span>
     </div>
   </div>
   <button class="snav-item active" id="snav-home" onclick="goPage('pg-home')">
@@ -870,7 +871,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span>
         · Quỹ tôi: <span id="home-balance" style="font-weight:700;color:#bf9eff">—</span>
         · Tổng: <span id="home-total-fund" style="font-weight:700;color:#bf9eff">—</span>
-        <span id="home-sc-spend" style="display:none"> · <span style="color:var(--accent)">🏸</span> <span class="sc-spend-amt" style="font-weight:700;color:var(--accent)">—</span></span>
+        <span id="home-sc-spend" style="display:none"> · <span style="color:var(--accent2)">📦</span> <span id="home-sc-unallocated-val" style="font-weight:700;color:var(--accent2)">—</span> <span style="color:var(--muted);font-size:11px">tồn kho</span></span>
       </div>
     </div>
     <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền"><i class="ph-bold ph-image"></i></button>
@@ -1236,13 +1237,13 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         <span style="color:var(--muted);font-size:12px"><i class="ph-bold ph-bank"></i> Tổng quỹ chung</span>
         <span id="fund-total-all" style="font-size:14px;font-weight:700;color:#bf9eff">—</span>
       </div>
-      <!-- Tiền cầu đã trích từ quỹ nhóm -->
-      <div id="fund-sc-spend" style="display:none;margin-top:5px;display:none">
+      <!-- Cầu tồn kho chưa phân bổ -->
+      <div id="fund-sc-spend" style="display:none;margin-top:5px">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0 1px">
-          <span style="color:var(--accent);font-size:11px"><i class="ph-bold ph-shuttlecock"></i> Đã trích mua cầu</span>
-          <span class="sc-spend-amt" style="font-size:12px;font-weight:600;color:var(--accent)">—</span>
+          <span style="color:var(--accent2);font-size:11px"><i class="ph ph-archive"></i> Cầu tồn kho chưa phân bổ</span>
+          <span id="fund-sc-unallocated-val" style="font-size:12px;font-weight:600;color:var(--accent2)">—</span>
         </div>
-        <div style="font-size:10px;color:rgba(200,255,71,0.5)">Đã trừ khỏi quỹ nhóm · quỹ cá nhân chưa đổi cho đến khi chia tiền buổi</div>
+        <div style="font-size:10px;color:rgba(71,212,255,0.5)">Tiền cầu còn trong kho · chưa tính vào buổi nào</div>
       </div>
     </div>
 
@@ -1891,15 +1892,14 @@ async function refreshAllFund() {
   const now = Date.now();
   if (now - _lastTotalFetch > 10000) {
     _lastTotalFetch = now;
-    const [{ data: allProfs }, { data: scTxns }] = await Promise.all([
+    const [{ data: allProfs }, { data: scBuyTxns }] = await Promise.all([
       db.from('profiles').select('fund_balance'),
       db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed')
     ]);
     if (allProfs) {
-      // Tổng quỹ cá nhân (chưa tính tiền cầu đã trích)
       const profileTotal = allProfs.reduce((s, x) => s + (x.fund_balance || 0), 0);
-      // Tổng tiền đã trích mua cầu (amount âm → tổng dương)
-      const scSpend = (scTxns||[]).reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+      // Trừ tổng tiền đã bỏ ra mua cầu khỏi quỹ tổng
+      const scSpend = (scBuyTxns||[]).reduce((s, t) => s + Math.abs(t.amount || 0), 0);
       // Thực tế quỹ nhóm = profileTotal - scSpend (cầu đã chi nhưng chưa phân bổ về cá nhân)
       const total = profileTotal - scSpend;
       const color = total < 0 ? 'var(--red)' : '#bf9eff';
@@ -1908,19 +1908,9 @@ async function refreshAllFund() {
         const el = document.getElementById(id);
         if (el) { el.textContent = text; el.style.color = color; }
       });
-      // Cập nhật ghi chú tiền cầu đã trích
-      ['sidebar-sc-spend','home-sc-spend','fund-sc-spend'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          if (scSpend > 0) {
-            el.style.display = '';
-            const amtEl = el.querySelector('.sc-spend-amt');
-            if (amtEl) amtEl.textContent = '-' + fmt(scSpend);
-          } else {
-            el.style.display = 'none';
-          }
-        }
-      });
+      // Cập nhật hiển thị tồn kho cầu (load scState trước)
+      await loadShuttlecockInventory();
+      updateScFundDisplay();
     }
   }
 }
@@ -4369,7 +4359,7 @@ async function loadFundPage() {
   balEl.className   = 'fund-bal' + (bal < 0 ? ' low' : '');
   updateBalanceDisplay(bal);
 
-  // Tổng quỹ chung = tổng fund_balance - tiền cầu đã trích
+  // Tổng quỹ chung = tổng fund_balance - tiền đã bỏ ra mua cầu (dù chưa dùng hết)
   const [{ data: allProfs }, { data: scTxnsF }] = await Promise.all([
     db.from('profiles').select('fund_balance'),
     db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed')
@@ -4382,17 +4372,12 @@ async function loadFundPage() {
     totalEl.textContent = (totalFund < 0 ? '-' : '') + fmt(Math.abs(totalFund));
     totalEl.style.color = totalFund < 0 ? 'var(--red)' : '#bf9eff';
   }
-  // Hiển thị ghi chú tiền cầu
+  // Hiển thị tồn kho cầu chưa phân bổ (updateScFundDisplay sẽ lo sau khi loadShuttlecockInventory)
   const scSpendEl = document.getElementById('fund-sc-spend');
-  if (scSpendEl) {
-    if (scSpendF > 0) {
-      scSpendEl.style.display = '';
-      const amtEl = scSpendEl.querySelector('.sc-spend-amt');
-      if (amtEl) amtEl.textContent = '-' + fmt(scSpendF);
-    } else {
-      scSpendEl.style.display = 'none';
-    }
-  }
+  if (scSpendEl) scSpendEl.style.display = 'none'; // reset, updateScFundDisplay sẽ bật lại nếu có tồn kho
+  // Cập nhật thông tin tồn kho chưa phân bổ (cần scState đã load)
+  await loadShuttlecockInventory();
+  renderShuttlecockCard();
 
   // Kiểm tra nợ buổi chưa trả
   const { data: unpaid } = await db.from('payments')
@@ -4627,14 +4612,34 @@ function renderShuttlecockCard() {
 }
 
 function updateScFundDisplay() {
-  const { remaining, totalCost } = scState;
-  // Hiển thị trên sidebar và home header nếu có tiền đã trích
-  const scFundEls = document.querySelectorAll('.sc-fund-info');
-  scFundEls.forEach(el => {
-    el.style.display = totalCost > 0 ? '' : 'none';
-    const amt = el.querySelector('.sc-fund-amt');
-    if (amt) amt.textContent = '-' + fmt(totalCost);
-  });
+  const { remaining, pricePerBird, totalCost } = scState;
+  const unallocatedCost = Math.round(remaining * pricePerBird);
+  const hasUnalloc = remaining > 0 && unallocatedCost > 0;
+  const valText = hasUnalloc ? `${remaining} trái · ${fmt(unallocatedCost)}` : '';
+
+  // Fund page
+  const fundSpendEl = document.getElementById('fund-sc-spend');
+  if (fundSpendEl) {
+    fundSpendEl.style.display = hasUnalloc ? '' : 'none';
+    const valEl = document.getElementById('fund-sc-unallocated-val');
+    if (valEl) valEl.textContent = hasUnalloc ? fmt(unallocatedCost) : '—';
+  }
+
+  // Sidebar
+  const sidebarEl = document.getElementById('sidebar-sc-spend');
+  if (sidebarEl) {
+    sidebarEl.style.display = hasUnalloc ? 'flex' : 'none';
+    const valEl = document.getElementById('sidebar-sc-unallocated-val');
+    if (valEl) valEl.textContent = `${remaining} trái · ${fmt(unallocatedCost)}`;
+  }
+
+  // Home header
+  const homeEl = document.getElementById('home-sc-spend');
+  if (homeEl) {
+    homeEl.style.display = hasUnalloc ? '' : 'none';
+    const valEl = document.getElementById('home-sc-unallocated-val');
+    if (valEl) valEl.textContent = `${remaining} trái · ${fmt(unallocatedCost)}`;
+  }
 }
 
 // ── Adjust SC Inventory Sheet (Admin only) ──
@@ -4761,8 +4766,52 @@ function openUseShuttlecockSheet() {
   document.getElementById('use-sc-stock').textContent    = remaining;
   document.getElementById('use-sc-price-per').textContent = pricePerBird > 0 ? fmt(pricePerBird) : '—';
 
+  // Render danh sách người tham gia để chọn ai không đánh cầu
+  renderUseSCMemberList();
   updateUseSCSummary();
   document.getElementById('use-sc-sheet-bg').classList.add('show');
+}
+
+function renderUseSCMemberList() {
+  const { members, guests, votes, session } = curSession || {};
+  const confirmedIds = new Set((votes||[]).filter(v => v.voter_id === v.target_id).map(v => v.voter_id));
+
+  // Lấy danh sách tham gia (đã vote xác nhận)
+  const confirmedMembers = (members||[]).filter(m => confirmedIds.has(m.user_id));
+
+  const listEl = document.getElementById('use-sc-member-list');
+  if (!listEl) return;
+
+  if (!confirmedMembers.length && !(guests||[]).length) {
+    listEl.innerHTML = '<div style="font-size:12px;color:var(--muted)">Chưa có người tham gia</div>';
+    return;
+  }
+
+  let html = '';
+  confirmedMembers.forEach(m => {
+    const initl = (m.profiles?.name || m.name || '?').slice(0,2).toUpperCase();
+    const name  = m.profiles?.name || m.name || '?';
+    html += `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;border-bottom:0.5px solid rgba(255,255,255,.06)">
+        <input type="checkbox" class="sc-payer-cb" data-uid="${m.user_id}" checked
+          style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"
+          onchange="updateUseSCSummary()">
+        <div class="av" style="background:${ac(m.user_id)};width:30px;height:30px;font-size:11px;flex-shrink:0">${initl}</div>
+        <span style="font-size:13px">${name}</span>
+      </label>`;
+  });
+  (guests||[]).forEach(g => {
+    html += `
+      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;border-bottom:0.5px solid rgba(255,255,255,.06)">
+        <input type="checkbox" class="sc-payer-cb" data-guest-id="${g.id}" checked
+          style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;flex-shrink:0"
+          onchange="updateUseSCSummary()">
+        <div class="av" style="background:#555;width:30px;height:30px;font-size:11px;flex-shrink:0">KH</div>
+        <span style="font-size:13px">${g.name} <span style="color:var(--muted);font-size:11px">(khách)</span></span>
+      </label>`;
+  });
+
+  listEl.innerHTML = html;
 }
 
 function closeUseShuttlecockSheet(e) {
@@ -4781,14 +4830,16 @@ function updateUseSCSummary() {
   const count      = parseInt(document.getElementById('use-sc-count').value) || 0;
   const { pricePerBird, remaining } = scState;
   const cost       = Math.round(count * pricePerBird);
-  const { members, guests } = curSession || {};
-  const confirmedIds = new Set((curSession?.votes||[]).filter(v => v.voter_id === v.target_id).map(v => v.voter_id));
-  const ppl          = (members||[]).filter(m => confirmedIds.has(m.user_id)).length + (guests||[]).length;
+
+  // Đếm số người được chọn thanh toán cầu
+  const checkedBoxes = document.querySelectorAll('.sc-payer-cb:checked');
+  const ppl = checkedBoxes.length;
+
   const perPerson    = ppl > 0 ? Math.round(cost / ppl) : 0;
   const overStock    = count > remaining;
 
   document.getElementById('use-sc-cost').textContent       = pricePerBird > 0 ? fmt(cost) : '—';
-  document.getElementById('use-sc-ppl').textContent        = ppl + ' người';
+  document.getElementById('use-sc-ppl').textContent        = ppl + ' người đánh';
   document.getElementById('use-sc-per-person').textContent = (pricePerBird > 0 && ppl > 0) ? fmt(perPerson) : '—';
   document.getElementById('use-sc-warn').style.display     = overStock ? '' : 'none';
   document.getElementById('use-sc-confirm-btn').disabled   = overStock;
@@ -4807,23 +4858,63 @@ async function confirmUseShuttlecock() {
   const totalCost = Math.round(count * pricePerBird);
   if (!totalCost) return toast('Chưa có giá cầu trong kho. Vui lòng mua ống cầu trước.', 'err');
 
+  // Lấy danh sách người thanh toán cầu được chọn
+  const checkedBoxes = document.querySelectorAll('.sc-payer-cb:checked');
+  if (!checkedBoxes.length) return toast('Chọn ít nhất 1 người thanh toán cầu', 'err');
+
+  const payerUids    = [];
+  const payerGuestIds = [];
+  checkedBoxes.forEach(cb => {
+    if (cb.dataset.uid)     payerUids.push(cb.dataset.uid);
+    if (cb.dataset.guestId) payerGuestIds.push(cb.dataset.guestId);
+  });
+
+  const totalPayers = payerUids.length + payerGuestIds.length;
+
   load(true);
   const now = new Date().toISOString();
 
-  // 1. Thêm expense vào buổi
+  // 1. Thêm expense vào buổi — dùng split_type 'selected' nếu có người bị loại, 'all' nếu tất cả
+  const { members, guests } = curSession || {};
+  const confirmedIds = new Set((curSession?.votes||[]).filter(v => v.voter_id === v.target_id).map(v => v.voter_id));
+  const totalConfirmed = (members||[]).filter(m => confirmedIds.has(m.user_id)).length + (guests||[]).length;
+  const useSelected = totalPayers < totalConfirmed;
+
   const { data: expense, error: expErr } = await db.from('expenses').insert({
     session_id: session.id,
     name:       `🏸 Cầu (${count} trái)`,
     amount:     totalCost,
-    split_type: 'all'
+    split_type: useSelected ? 'selected' : 'all'
   }).select().single();
 
   if (expErr) { load(false); toast(expErr.message, 'err'); return; }
 
-  // 2. Ghi nhận số cầu đã dùng vào fund_transactions (để trừ kho)
+  // 2. Nếu split_type selected → thêm expense_assignments chỉ cho người được chọn
+  if (useSelected && expense?.id) {
+    const sharePerPerson = Math.round(totalCost / totalPayers);
+
+    if (payerUids.length) {
+      const memberAssigns = payerUids.map(uid => ({
+        expense_id: expense.id,
+        user_id:    uid,
+        amount:     sharePerPerson
+      }));
+      await db.from('expense_assignments').insert(memberAssigns);
+    }
+    if (payerGuestIds.length) {
+      const guestAssigns = payerGuestIds.map(gid => ({
+        expense_id: expense.id,
+        guest_id:   gid,
+        amount:     sharePerPerson
+      }));
+      await db.from('guest_expense_assignments').insert(guestAssigns);
+    }
+  }
+
+  // 3. Ghi nhận số cầu đã dùng vào fund_transactions (để trừ kho)
   await db.from('fund_transactions').insert({
     user_id:      me.id,
-    amount:       0,                 // chỉ để tracking kho, không ảnh hưởng balance
+    amount:       0,
     type:         'shuttlecock_use',
     description:  JSON.stringify({ session_id: session.id, count, cost: totalCost }),
     session_id:   session.id,
@@ -4834,7 +4925,8 @@ async function confirmUseShuttlecock() {
 
   load(false);
   closeUseShuttlecockSheet({});
-  toast(`✓ Ghi ${count} trái · ${fmt(totalCost)} vào chi phí`, 'ok');
+  const skipNote = totalPayers < totalConfirmed ? ` · ${totalConfirmed - totalPayers} người không tính cầu` : '';
+  toast(`✓ Ghi ${count} trái · ${fmt(totalCost)} vào chi phí${skipNote}`, 'ok');
 
   // Refresh kho + expense tab
   _pendingCache.ts = 0;
@@ -5081,7 +5173,7 @@ let adminTab = 'pending';
 async function loadAdminPage() {
   if (!me?.is_admin) return toast('Không có quyền admin', 'err');
 
-  // Tổng quỹ = tổng fund_balance - tiền cầu đã trích
+  // Tổng quỹ = tổng fund_balance - tiền đã bỏ ra mua cầu
   const { data: profiles } = await db.from('profiles').select('id,name,fund_balance').order('name');
   const { data: scTxnsA }  = await db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed');
   const profileTotalA = (profiles||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
@@ -6122,6 +6214,26 @@ if (document.readyState === 'loading') {
       </div>
     </div>
 
+    <!-- Chọn người đánh cầu -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <label class="fl" style="margin:0">Ai tham gia đánh cầu?</label>
+        <div style="display:flex;gap:8px">
+          <button onclick="document.querySelectorAll('.sc-payer-cb').forEach(c=>{c.checked=true});updateUseSCSummary()"
+            style="background:none;border:0.5px solid var(--border);border-radius:8px;padding:3px 9px;
+            font-size:11px;color:var(--muted);cursor:pointer">Tất cả</button>
+          <button onclick="document.querySelectorAll('.sc-payer-cb').forEach(c=>{c.checked=false});updateUseSCSummary()"
+            style="background:none;border:0.5px solid var(--border);border-radius:8px;padding:3px 9px;
+            font-size:11px;color:var(--muted);cursor:pointer">Bỏ chọn</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;background:rgba(71,212,255,0.07);
+        border:0.5px solid rgba(71,212,255,0.2);border-radius:8px;padding:7px 10px">
+        <i class="ph ph-info"></i> Bỏ tick người không đánh cầu — họ vẫn tính tiền sân bình thường
+      </div>
+      <div id="use-sc-member-list" style="max-height:180px;overflow-y:auto"></div>
+    </div>
+
     <!-- Cost preview -->
     <div id="use-sc-summary" style="background:rgba(255,107,71,0.07);border:0.5px solid rgba(255,107,71,0.22);
       border-radius:12px;padding:12px 14px;margin-bottom:18px">
@@ -6130,7 +6242,7 @@ if (document.readyState === 'loading') {
         <span id="use-sc-cost" style="font-size:13px;font-weight:700;color:var(--accent2)">—</span>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-        <span style="color:var(--muted);font-size:12px">Số người tham gia</span>
+        <span style="color:var(--muted);font-size:12px">Người chịu tiền cầu</span>
         <span id="use-sc-ppl" style="font-size:13px;font-weight:700">—</span>
       </div>
       <div style="display:flex;justify-content:space-between;border-top:0.5px solid rgba(255,255,255,.08);padding-top:8px;margin-top:4px">
