@@ -2404,7 +2404,7 @@ function renderSession() {
     reopenBtn.id = 'btn-reopen-vote';
     reopenBtn.className = 'btn-ghost';
     reopenBtn.style.cssText = 'padding:7px 12px;font-size:12px;color:var(--accent2);border-color:rgba(71,212,255,.35)';
-    reopenBtn.textContent = '<i class="ph-bold ph-lock-open"></i> Mở lại BC';
+    reopenBtn.innerHTML = '<i class="ph-bold ph-lock-open"></i> Mở lại BC';
     reopenBtn.onclick = doReopenVote;
     document.getElementById('host-close-btn').appendChild(reopenBtn);
   } else if (reopenBtn) {
