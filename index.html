@@ -2404,7 +2404,7 @@ function renderSession() {
     reopenBtn.id = 'btn-reopen-vote';
     reopenBtn.className = 'btn-ghost';
     reopenBtn.style.cssText = 'padding:7px 12px;font-size:12px;color:var(--accent2);border-color:rgba(71,212,255,.35)';
-    reopenBtn.innerHTML = '<i class="ph-bold ph-lock-open"></i> Mở lại BC';
+    reopenBtn.textContent = '<i class="ph-bold ph-lock-open"></i> Mở lại BC';
     reopenBtn.onclick = doReopenVote;
     document.getElementById('host-close-btn').appendChild(reopenBtn);
   } else if (reopenBtn) {
@@ -2535,7 +2535,7 @@ function renderSession() {
             </div>
             <div style="font-size:11px;color:var(--green);margin-top:2px">✓ Xác nhận tham gia</div>
           </div>
-          <span style="font-size:20px">✅</span>
+          <span style="font-size:22px"><i class="ph-bold ph-check-circle" style="color:var(--green)"></i></span>
         </div>`).join('');
 
   const guestRows2 = guests.map(g => `
@@ -2548,7 +2548,7 @@ function renderSession() {
             </div>
             <div style="font-size:11px;color:var(--green);margin-top:2px">✓ Xác nhận tham gia</div>
           </div>
-          <span style="font-size:20px">✅</span>
+          <span style="font-size:22px"><i class="ph-bold ph-check-circle" style="color:var(--green)"></i></span>
         </div>`).join('');
 
   const allConfirmedHtml = memberRows2 + guestRows2;
@@ -2563,7 +2563,7 @@ function renderSession() {
         <div style="font-size:14px;font-weight:600">${m.profiles?.name||'?'}</div>
         <div style="font-size:11px;color:var(--muted);margin-top:2px">Chưa xác nhận</div>
       </div>
-      <span style="font-size:20px">⬜</span>
+      <span style="font-size:22px"><i class="ph ph-circle" style="opacity:.4"></i></span>
     </div>`).join('');
 }
 
