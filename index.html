@@ -663,6 +663,39 @@ body::before {
   backdrop-filter: blur(16px);
   border-radius:18px; padding:14px 16px; margin-bottom:10px;
 }
+
+/* ── Kho Cầu ── */
+.sc-hero {
+  background: linear-gradient(135deg,rgba(200,255,71,0.08),rgba(71,212,255,0.06));
+  border: 0.5px solid rgba(200,255,71,0.22);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-radius:20px; padding:16px; margin-bottom:14px;
+}
+.sc-count { font-size:36px; font-weight:800; color:var(--accent); line-height:1; }
+.sc-count.empty { color:var(--red); }
+.sc-count.low   { color:var(--yellow); }
+.sc-use-btn {
+  background:rgba(200,255,71,0.12); border:0.5px solid rgba(200,255,71,0.32);
+  color:var(--accent); border-radius:var(--r-pill); padding:8px 16px;
+  font-family:'Be Vietnam Pro',sans-serif; font-size:13px; font-weight:700;
+  cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all .18s;
+}
+.sc-use-btn:hover { background:rgba(200,255,71,0.2); }
+.sc-use-btn:disabled { opacity:.35; cursor:not-allowed; }
+.sc-batch-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 12px; background:rgba(255,255,255,0.04);
+  border:0.5px solid rgba(255,255,255,0.08); border-radius:10px; margin-bottom:6px;
+  font-size:12px;
+}
+.pending-settle-badge {
+  display:flex; align-items:center; justify-content:space-between;
+  background:rgba(255,214,10,0.08); border:0.5px solid rgba(255,214,10,0.28);
+  border-radius:10px; padding:6px 10px; margin-top:8px;
+}
+.pending-settle-label { font-size:11px; color:#ffd60a; display:flex; align-items:center; gap:4px; }
+.pending-settle-amt   { font-size:12px; font-weight:700; color:#ffd60a; }
 </style>
 </head>
 <body>
@@ -704,6 +737,10 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div style="margin-top:4px;display:flex;align-items:center;gap:6px">
       <span style="font-size:10px;color:var(--muted)">Quỹ tổng:</span>
       <span id="sidebar-total-fund" style="font-size:13px;font-weight:700;color:#bf9eff">—</span>
+    </div>
+    <div id="sidebar-sc-spend" style="display:none;margin-top:2px;align-items:center;gap:4px">
+      <span style="font-size:9px;color:var(--accent)">🏸 Đã trích cầu:</span>
+      <span class="sc-spend-amt" style="font-size:10px;font-weight:700;color:var(--accent)">—</span>
     </div>
   </div>
   <button class="snav-item active" id="snav-home" onclick="goPage('pg-home')">
@@ -833,6 +870,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       <div style="color:var(--muted);font-size:12px;margin-top:1px">Xin chào, <span id="home-name" style="color:var(--text);font-weight:600"></span>
         · Quỹ tôi: <span id="home-balance" style="font-weight:700;color:#bf9eff">—</span>
         · Tổng: <span id="home-total-fund" style="font-weight:700;color:#bf9eff">—</span>
+        <span id="home-sc-spend" style="display:none"> · <span style="color:var(--accent)">🏸</span> <span class="sc-spend-amt" style="font-weight:700;color:var(--accent)">—</span></span>
       </div>
     </div>
     <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền"><i class="ph-bold ph-image"></i></button>
@@ -973,9 +1011,14 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <!-- TAB: Chi phí -->
     <div id="tab-pane-exp" style="display:none">
       <div id="exp-host-add" style="display:none;margin-bottom:14px">
-        <button class="btn" onclick="openExpenseSheet()" style="background:rgba(200,255,71,.10);border:0.5px solid rgba(200,255,71,.28);color:var(--accent);border-radius:var(--r-pill)">
-          + Thêm khoản chi phí
-        </button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" onclick="openExpenseSheet()" style="flex:1;background:rgba(200,255,71,.10);border:0.5px solid rgba(200,255,71,.28);color:var(--accent);border-radius:var(--r-pill)">
+            + Thêm khoản chi phí
+          </button>
+          <button class="sc-use-btn" id="sc-session-btn" onclick="openUseShuttlecockSheet()" title="Ghi số cầu đã dùng">
+            <i class="ph-bold ph-shuttlecock"></i> Ghi cầu
+          </button>
+        </div>
       </div>
       <div style="color:var(--muted);font-size:12px;margin-bottom:12px" id="exp-hint"></div>
       <div id="exp-list"></div>
@@ -1193,13 +1236,48 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         <span style="color:var(--muted);font-size:12px"><i class="ph-bold ph-bank"></i> Tổng quỹ chung</span>
         <span id="fund-total-all" style="font-size:14px;font-weight:700;color:#bf9eff">—</span>
       </div>
+      <!-- Tiền cầu đã trích từ quỹ nhóm -->
+      <div id="fund-sc-spend" style="display:none;margin-top:5px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0 1px">
+          <span style="color:var(--accent);font-size:11px"><i class="ph-bold ph-shuttlecock"></i> Đã trích mua cầu</span>
+          <span class="sc-spend-amt" style="font-size:12px;font-weight:600;color:var(--accent)">—</span>
+        </div>
+        <div style="font-size:10px;color:rgba(200,255,71,0.5)">Đã trừ khỏi quỹ nhóm · quỹ cá nhân chưa đổi cho đến khi chia tiền buổi</div>
+      </div>
     </div>
 
     <!-- Nút đóng quỹ -->
     <button class="btn" onclick="openDepositSheet()"
-      style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.35);color:#bf9eff;margin-bottom:20px">
+      style="background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.35);color:#bf9eff;margin-bottom:16px">
       + Đóng quỹ
     </button>
+
+    <!-- ── Kho Cầu ── -->
+    <div class="sec" style="margin-bottom:8px"><div class="sec-t"><i class="ph-bold ph-shuttlecock" style="color:var(--accent)"></i> Kho Cầu</div></div>
+    <div class="sc-hero" id="sc-hero-card">
+      <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px">Số trái còn lại</div>
+          <div class="sc-count" id="sc-remaining">—</div>
+        </div>
+        <div style="flex:1"></div>
+        <div style="text-align:right">
+          <div style="color:var(--muted);font-size:11px;margin-bottom:2px">Giá / trái</div>
+          <div style="font-size:16px;font-weight:700;color:var(--accent2)" id="sc-price-per">—</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="sc-action-row">
+        <button class="sc-use-btn" id="sc-buy-btn" onclick="openBuyTubeSheet()">
+          <i class="ph-bold ph-shopping-cart"></i> Mua ống cầu
+        </button>
+        <button class="sc-use-btn" id="sc-adjust-btn" onclick="openAdjustSCSheet()"
+          style="display:none;background:rgba(191,90,242,0.12);border-color:rgba(191,90,242,0.3);color:var(--purple)">
+          <i class="ph-bold ph-sliders"></i> Điều chỉnh kho
+        </button>
+      </div>
+      <!-- Lịch sử mua -->
+      <div id="sc-batch-list" style="margin-top:12px;display:none"></div>
+    </div>
 
     <!-- Buổi đang nợ -->
     <div id="fund-debt-list" style="display:none"></div>
@@ -1813,14 +1891,35 @@ async function refreshAllFund() {
   const now = Date.now();
   if (now - _lastTotalFetch > 10000) {
     _lastTotalFetch = now;
-    const { data: allProfs } = await db.from('profiles').select('fund_balance');
+    const [{ data: allProfs }, { data: scTxns }] = await Promise.all([
+      db.from('profiles').select('fund_balance'),
+      db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed')
+    ]);
     if (allProfs) {
-      const total = allProfs.reduce((s, x) => s + (x.fund_balance || 0), 0);
-      const color = total < 0 ? 'var(--red)' : 'var(--accent2)';
+      // Tổng quỹ cá nhân (chưa tính tiền cầu đã trích)
+      const profileTotal = allProfs.reduce((s, x) => s + (x.fund_balance || 0), 0);
+      // Tổng tiền đã trích mua cầu (amount âm → tổng dương)
+      const scSpend = (scTxns||[]).reduce((s, t) => s + Math.abs(t.amount || 0), 0);
+      // Thực tế quỹ nhóm = profileTotal - scSpend (cầu đã chi nhưng chưa phân bổ về cá nhân)
+      const total = profileTotal - scSpend;
+      const color = total < 0 ? 'var(--red)' : '#bf9eff';
       const text  = (total < 0 ? '-' : '') + fmt(Math.abs(total));
       ['sidebar-total-fund', 'home-total-fund', 'fund-total-all'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.textContent = text; el.style.color = color; }
+      });
+      // Cập nhật ghi chú tiền cầu đã trích
+      ['sidebar-sc-spend','home-sc-spend','fund-sc-spend'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          if (scSpend > 0) {
+            el.style.display = '';
+            const amtEl = el.querySelector('.sc-spend-amt');
+            if (amtEl) amtEl.textContent = '-' + fmt(scSpend);
+          } else {
+            el.style.display = 'none';
+          }
+        }
       });
     }
   }
@@ -1855,8 +1954,13 @@ function startAllRealtime() {
   // ── FUND: fund_transactions làm fast-path trigger (profiles UPDATE cần REPLICA IDENTITY FULL) ──
   if (fundCh) db.removeChannel(fundCh);
   fundCh = db.channel('rt-fund')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async (pl) => {
       await refreshTotalNow();
+      // Nếu là giao dịch cầu → refresh kho
+      if (pl?.new?.type === 'shuttlecock_buy' || pl?.new?.type === 'shuttlecock_use') {
+        await loadShuttlecockInventory();
+        renderShuttlecockCard();
+      }
       if (isActive('pg-fund')) loadFundPage();
     })
     .subscribe();
@@ -4265,13 +4369,29 @@ async function loadFundPage() {
   balEl.className   = 'fund-bal' + (bal < 0 ? ' low' : '');
   updateBalanceDisplay(bal);
 
-  // Tổng quỹ chung (tổng fund_balance của tất cả thành viên)
-  const { data: allProfs } = await db.from('profiles').select('fund_balance');
-  const totalFund = (allProfs||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
+  // Tổng quỹ chung = tổng fund_balance - tiền cầu đã trích
+  const [{ data: allProfs }, { data: scTxnsF }] = await Promise.all([
+    db.from('profiles').select('fund_balance'),
+    db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed')
+  ]);
+  const profileTotal = (allProfs||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
+  const scSpendF     = (scTxnsF||[]).reduce((s,t) => s+Math.abs(t.amount||0), 0);
+  const totalFund    = profileTotal - scSpendF;
   const totalEl = document.getElementById('fund-total-all');
   if (totalEl) {
     totalEl.textContent = (totalFund < 0 ? '-' : '') + fmt(Math.abs(totalFund));
-    totalEl.style.color = totalFund < 0 ? 'var(--red)' : 'var(--accent2)';
+    totalEl.style.color = totalFund < 0 ? 'var(--red)' : '#bf9eff';
+  }
+  // Hiển thị ghi chú tiền cầu
+  const scSpendEl = document.getElementById('fund-sc-spend');
+  if (scSpendEl) {
+    if (scSpendF > 0) {
+      scSpendEl.style.display = '';
+      const amtEl = scSpendEl.querySelector('.sc-spend-amt');
+      if (amtEl) amtEl.textContent = '-' + fmt(scSpendF);
+    } else {
+      scSpendEl.style.display = 'none';
+    }
   }
 
   // Kiểm tra nợ buổi chưa trả
@@ -4318,15 +4438,36 @@ async function loadFundPage() {
   }
 
   // Load transactions của tôi (join sessions để lấy tên buổi)
+  // Lọc bỏ shuttlecock_use (chỉ tracking kho, amount=0, không liên quan cá nhân)
   const { data: txns } = await db.from('fund_transactions')
     .select('*, sessions(title)')
-    .eq('user_id', me.id).order('created_at', {ascending:false}).limit(30);
+    .eq('user_id', me.id)
+    .not('type', 'in', '("shuttlecock_use")')
+    .order('created_at', {ascending:false}).limit(30);
   renderFundTxnList(txns||[], document.getElementById('fund-txn-list'), false);
+
+  // Kho Cầu
+  await loadShuttlecockInventory();
+  renderShuttlecockCard();
 }
 
 // Helper: nhận diện nhãn hiển thị thông minh dựa vào type + description
 function getTypeLabel(t) {
   if (t.type === 'deposit') return 'Đóng quỹ';
+  if (t.type === 'shuttlecock_buy') {
+    try {
+      const d = JSON.parse(t.description||'{}');
+      const base = `Mua cầu (${d.tubes||1} ống · ${d.count||12} trái)`;
+      return base;
+    } catch(e) { return 'Mua ống cầu'; }
+  }
+  if (t.type === 'shuttlecock_adjust') {
+    try {
+      const d = JSON.parse(t.description||'{}');
+      const sign = (d.delta||0) >= 0 ? '+' : '';
+      return `Điều chỉnh kho (${sign}${d.delta||0} trái)`;
+    } catch(e) { return 'Điều chỉnh kho'; }
+  }
   if (t.type === 'deduction') {
     const d = t.description || '';
     if (d.startsWith('Bảo lãnh khách')) {
@@ -4346,36 +4487,424 @@ function getTypeLabel(t) {
   return t.type || '—';
 }
 
+// ═══════════════════════════════════════════════
+// KHO CẦU — Shuttlecock Inventory Management
+// ═══════════════════════════════════════════════
+
+// Cache trạng thái kho cầu
+let scState = { remaining: 0, pricePerBird: 0, batches: [], totalBought: 0, totalUsed: 0 };
+
+// Tính toán trạng thái kho từ fund_transactions
+async function loadShuttlecockInventory() {
+  if (!db || !me) return;
+
+  // Lấy tất cả giao dịch mua cầu
+  const { data: buyTxns } = await db.from('fund_transactions')
+    .select('id, amount, description, created_at, user_id')
+    .eq('type', 'shuttlecock_buy')
+    .order('created_at', { ascending: false });
+
+  // Lấy tất cả giao dịch dùng cầu
+  const { data: useTxns } = await db.from('fund_transactions')
+    .select('id, description, created_at')
+    .eq('type', 'shuttlecock_use')
+    .order('created_at', { ascending: false });
+
+  // Lấy tất cả giao dịch điều chỉnh kho (admin)
+  const { data: adjTxns } = await db.from('fund_transactions')
+    .select('id, description, created_at, user_id')
+    .eq('type', 'shuttlecock_adjust')
+    .order('created_at', { ascending: false });
+
+  let totalBought = 0, totalUsed = 0, totalCost = 0, totalAdj = 0;
+  let latestPricePerBird = 0;
+  const batches = [];
+
+  (buyTxns || []).forEach(t => {
+    try {
+      const d = JSON.parse(t.description || '{}');
+      const count = (d.count || 12) * (d.tubes || 1);
+      const price = Math.abs(t.amount || 0);
+      totalBought += count;
+      totalCost   += price;
+      if (!latestPricePerBird && count > 0) latestPricePerBird = price / count;
+      batches.push({
+        id: t.id, count, price, date: t.created_at,
+        pricePerBird: count > 0 ? Math.round(price / count) : 0,
+        orderedByName: d.ordered_by_name || null,
+        type: 'buy'
+      });
+    } catch(e) {}
+  });
+
+  (useTxns || []).forEach(t => {
+    try {
+      const d = JSON.parse(t.description || '{}');
+      totalUsed += (d.count || 0);
+    } catch(e) {}
+  });
+
+  (adjTxns || []).forEach(t => {
+    try {
+      const d = JSON.parse(t.description || '{}');
+      totalAdj += (d.delta || 0);
+      batches.push({
+        id: t.id, count: d.delta, price: 0, date: t.created_at,
+        pricePerBird: 0, orderedByName: d.admin_name || null,
+        note: d.note || '', type: 'adjust'
+      });
+    } catch(e) {}
+  });
+
+  // Sort batches by date desc
+  batches.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  scState = {
+    remaining: Math.max(0, totalBought - totalUsed + totalAdj),
+    pricePerBird: latestPricePerBird,
+    batches,
+    totalBought,
+    totalUsed,
+    totalAdj,
+    totalCost
+  };
+
+  return scState;
+}
+
+function renderShuttlecockCard() {
+  const { remaining, pricePerBird, batches } = scState;
+
+  const remEl = document.getElementById('sc-remaining');
+  if (remEl) {
+    remEl.textContent = remaining;
+    remEl.className = 'sc-count' + (remaining === 0 ? ' empty' : remaining <= 3 ? ' low' : '');
+  }
+
+  const ppeEl = document.getElementById('sc-price-per');
+  if (ppeEl) ppeEl.textContent = pricePerBird > 0 ? fmt(pricePerBird) : '—';
+
+  // Nút điều chỉnh kho — chỉ admin
+  const adjBtn = document.getElementById('sc-adjust-btn');
+  if (adjBtn) adjBtn.style.display = me?.is_admin ? '' : 'none';
+
+  // Batch list (show last 3 purchases + adjustments)
+  const batchListEl = document.getElementById('sc-batch-list');
+  if (batchListEl) {
+    if (batches.length) {
+      batchListEl.style.display = '';
+      batchListEl.innerHTML = `
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600">Lịch sử kho gần đây</div>
+        ${batches.slice(0,4).map(b => {
+          if (b.type === 'adjust') {
+            const sign = b.count >= 0 ? '+' : '';
+            return `
+              <div class="sc-batch-row">
+                <div>
+                  <span style="color:var(--purple)">⚙️ Điều chỉnh kho ${sign}${b.count} trái</span>
+                  ${b.note ? `<div style="font-size:10px;color:var(--muted)">${b.note}</div>` : ''}
+                  ${b.orderedByName ? `<div style="font-size:10px;color:var(--muted)">Admin: ${b.orderedByName}</div>` : ''}
+                </div>
+                <span style="color:var(--muted);font-size:11px">${new Date(b.date).toLocaleDateString('vi-VN')}</span>
+              </div>`;
+          }
+          return `
+            <div class="sc-batch-row">
+              <div>
+                <span style="color:var(--text2)">${new Date(b.date).toLocaleDateString('vi-VN')} · ${b.count} trái</span>
+                ${b.orderedByName ? `<div style="font-size:10px;color:var(--muted)">Người tạo: ${b.orderedByName}</div>` : ''}
+              </div>
+              <span style="color:var(--accent2);font-weight:700">${fmt(b.price)}</span>
+            </div>`;
+        }).join('')}`;
+    } else {
+      batchListEl.style.display = 'none';
+    }
+  }
+
+  // Cập nhật sidebar/home fund display với thông tin kho
+  updateScFundDisplay();
+}
+
+function updateScFundDisplay() {
+  const { remaining, totalCost } = scState;
+  // Hiển thị trên sidebar và home header nếu có tiền đã trích
+  const scFundEls = document.querySelectorAll('.sc-fund-info');
+  scFundEls.forEach(el => {
+    el.style.display = totalCost > 0 ? '' : 'none';
+    const amt = el.querySelector('.sc-fund-amt');
+    if (amt) amt.textContent = '-' + fmt(totalCost);
+  });
+}
+
+// ── Adjust SC Inventory Sheet (Admin only) ──
+function openAdjustSCSheet() {
+  if (!me?.is_admin) return toast('Chỉ admin mới có thể điều chỉnh kho', 'err');
+  const { remaining } = scState;
+  document.getElementById('adj-sc-current').textContent = remaining;
+  document.getElementById('adj-sc-new').value = remaining;
+  document.getElementById('adj-sc-note').value = '';
+  document.getElementById('adj-sc-sheet-bg').classList.add('show');
+}
+
+function closeAdjustSCSheet(e) {
+  if (!e || e.target === document.getElementById('adj-sc-sheet-bg'))
+    document.getElementById('adj-sc-sheet-bg').classList.remove('show');
+}
+
+async function confirmAdjustSC() {
+  if (!me?.is_admin) return toast('Chỉ admin mới có thể điều chỉnh kho', 'err');
+  const newVal = parseInt(document.getElementById('adj-sc-new').value);
+  if (isNaN(newVal) || newVal < 0) return toast('Số lượng không hợp lệ', 'err');
+  const { remaining } = scState;
+  const delta = newVal - remaining;
+  const note = document.getElementById('adj-sc-note').value.trim();
+
+  load(true);
+  const now = new Date().toISOString();
+  const { error } = await db.from('fund_transactions').insert({
+    user_id:      me.id,
+    amount:       0,
+    type:         'shuttlecock_adjust',
+    description:  JSON.stringify({ delta, new_value: newVal, old_value: remaining, note, admin_name: me.name || '' }),
+    status:       'confirmed',
+    confirmed_by: me.id,
+    confirmed_at: now
+  });
+
+  load(false);
+  if (error) { toast(error.message, 'err'); return; }
+
+  closeAdjustSCSheet({});
+  const sign = delta >= 0 ? '+' : '';
+  toast(`✓ Điều chỉnh kho: ${sign}${delta} trái → còn ${newVal} trái`, 'ok');
+
+  await loadShuttlecockInventory();
+  renderShuttlecockCard();
+}
+
+// ── Buy Tube Sheet ──
+let tubeQty = 1;
+
+function openBuyTubeSheet() {
+  tubeQty = 1;
+  document.getElementById('tube-qty-display').textContent = '1';
+  document.getElementById('tube-price').value = '320000';
+  updateTubeSummary();
+  // Hiện tên người tạo lệnh
+  const nameEl = document.getElementById('buy-tube-ordered-by');
+  const nameText = document.getElementById('buy-tube-ordered-by-name');
+  if (nameEl && nameText && me?.name) {
+    nameText.textContent = me.name;
+    nameEl.style.display = '';
+  }
+  document.getElementById('buy-tube-sheet-bg').classList.add('show');
+}
+
+function closeBuyTubeSheet(e) {
+  if (!e || e.target === document.getElementById('buy-tube-sheet-bg'))
+    document.getElementById('buy-tube-sheet-bg').classList.remove('show');
+}
+
+function adjustTubeQty(delta) {
+  tubeQty = Math.max(1, tubeQty + delta);
+  document.getElementById('tube-qty-display').textContent = tubeQty;
+  updateTubeSummary();
+}
+
+function updateTubeSummary() {
+  const price   = parseFloat(document.getElementById('tube-price').value) || 0;
+  const total   = price * tubeQty;
+  const birds   = 12 * tubeQty;
+  const perBird = birds > 0 ? Math.round(total / birds) : 0;
+  document.getElementById('tube-sum-birds').textContent     = birds + ' trái';
+  document.getElementById('tube-sum-price-per').textContent = perBird > 0 ? fmt(perBird) : '—';
+  document.getElementById('tube-sum-total').textContent     = total > 0 ? fmt(total) : '—';
+}
+
+async function confirmBuyTube() {
+  const price = parseFloat(document.getElementById('tube-price').value) || 0;
+  if (!price) return toast('Nhập giá ống cầu', 'err');
+  if (!me?.id) return;
+
+  load(true);
+  const total  = price * tubeQty;
+  const birds  = 12   * tubeQty;
+  const now    = new Date().toISOString();
+
+  const { error } = await db.from('fund_transactions').insert({
+    user_id:      me.id,
+    amount:       -total,            // âm = chi quỹ nhóm (không trừ profile balance)
+    type:         'shuttlecock_buy',
+    description:  JSON.stringify({ tubes: tubeQty, count: birds, price: total, ordered_by_name: me.name || '' }),
+    status:       'confirmed',
+    confirmed_by: me.id,
+    confirmed_at: now
+  });
+
+  load(false);
+  if (error) { toast(error.message, 'err'); return; }
+
+  closeBuyTubeSheet({});
+  toast(`✓ Mua ${tubeQty} ống · +${birds} trái vào kho`, 'ok');
+
+  // Refresh kho cầu
+  await loadShuttlecockInventory();
+  renderShuttlecockCard();
+}
+
+// ── Use Shuttlecock Sheet ──
+function openUseShuttlecockSheet() {
+  const { remaining, pricePerBird } = scState;
+
+  document.getElementById('use-sc-count').value = Math.min(3, remaining || 3);
+  document.getElementById('use-sc-stock').textContent    = remaining;
+  document.getElementById('use-sc-price-per').textContent = pricePerBird > 0 ? fmt(pricePerBird) : '—';
+
+  updateUseSCSummary();
+  document.getElementById('use-sc-sheet-bg').classList.add('show');
+}
+
+function closeUseShuttlecockSheet(e) {
+  if (!e || e.target === document.getElementById('use-sc-sheet-bg'))
+    document.getElementById('use-sc-sheet-bg').classList.remove('show');
+}
+
+function adjustUseSC(delta) {
+  const el  = document.getElementById('use-sc-count');
+  const val = Math.max(1, (parseInt(el.value) || 1) + delta);
+  el.value  = val;
+  updateUseSCSummary();
+}
+
+function updateUseSCSummary() {
+  const count      = parseInt(document.getElementById('use-sc-count').value) || 0;
+  const { pricePerBird, remaining } = scState;
+  const cost       = Math.round(count * pricePerBird);
+  const { members, guests } = curSession || {};
+  const confirmedIds = new Set((curSession?.votes||[]).filter(v => v.voter_id === v.target_id).map(v => v.voter_id));
+  const ppl          = (members||[]).filter(m => confirmedIds.has(m.user_id)).length + (guests||[]).length;
+  const perPerson    = ppl > 0 ? Math.round(cost / ppl) : 0;
+  const overStock    = count > remaining;
+
+  document.getElementById('use-sc-cost').textContent       = pricePerBird > 0 ? fmt(cost) : '—';
+  document.getElementById('use-sc-ppl').textContent        = ppl + ' người';
+  document.getElementById('use-sc-per-person').textContent = (pricePerBird > 0 && ppl > 0) ? fmt(perPerson) : '—';
+  document.getElementById('use-sc-warn').style.display     = overStock ? '' : 'none';
+  document.getElementById('use-sc-confirm-btn').disabled   = overStock;
+}
+
+async function confirmUseShuttlecock() {
+  const count = parseInt(document.getElementById('use-sc-count').value) || 0;
+  if (!count) return toast('Nhập số cầu đã dùng', 'err');
+
+  const { pricePerBird, remaining } = scState;
+  if (count > remaining) return toast('Số cầu dùng vượt kho!', 'err');
+
+  const session = curSession?.session;
+  if (!session) return toast('Không tìm thấy buổi', 'err');
+
+  const totalCost = Math.round(count * pricePerBird);
+  if (!totalCost) return toast('Chưa có giá cầu trong kho. Vui lòng mua ống cầu trước.', 'err');
+
+  load(true);
+  const now = new Date().toISOString();
+
+  // 1. Thêm expense vào buổi
+  const { data: expense, error: expErr } = await db.from('expenses').insert({
+    session_id: session.id,
+    name:       `🏸 Cầu (${count} trái)`,
+    amount:     totalCost,
+    split_type: 'all'
+  }).select().single();
+
+  if (expErr) { load(false); toast(expErr.message, 'err'); return; }
+
+  // 2. Ghi nhận số cầu đã dùng vào fund_transactions (để trừ kho)
+  await db.from('fund_transactions').insert({
+    user_id:      me.id,
+    amount:       0,                 // chỉ để tracking kho, không ảnh hưởng balance
+    type:         'shuttlecock_use',
+    description:  JSON.stringify({ session_id: session.id, count, cost: totalCost }),
+    session_id:   session.id,
+    status:       'confirmed',
+    confirmed_by: me.id,
+    confirmed_at: now
+  });
+
+  load(false);
+  closeUseShuttlecockSheet({});
+  toast(`✓ Ghi ${count} trái · ${fmt(totalCost)} vào chi phí`, 'ok');
+
+  // Refresh kho + expense tab
+  _pendingCache.ts = 0;
+  await loadShuttlecockInventory();
+  renderShuttlecockCard();
+  renderExpenses();
+}
+
 function renderFundTxnList(txns, el, showUser) {
   if (!txns.length) {
     el.innerHTML = '<div class="empty" style="padding:28px"><div style="font-size:13px">Chưa có giao dịch nào</div></div>';
     return;
   }
   el.innerHTML = txns.map(t => {
-    const isIn   = t.amount > 0;
-    const status = t.status === 'pending' ? '⏳ Chờ duyệt' : t.status === 'confirmed' ? '✓ Đã xác nhận' : '✕ Từ chối';
-    const stCls  = t.status === 'pending' ? 'pending-row' : t.status === 'confirmed' ? 'confirmed-row' : 'rejected-row';
+    const isSCBuy = t.type === 'shuttlecock_buy';
+    const isSCAdj = t.type === 'shuttlecock_adjust';
+    const isIn    = t.amount > 0;
+    const status  = t.status === 'pending' ? '⏳ Chờ duyệt' : t.status === 'confirmed' ? '✓ Đã xác nhận' : '✕ Từ chối';
+    const stCls   = t.status === 'pending' ? 'pending-row' : t.status === 'confirmed' ? 'confirmed-row' : 'rejected-row';
     const typeLabel = getTypeLabel(t);
-    // Tên buổi — ưu tiên join sessions, fallback description
+
+    // Ghi chú người tạo lệnh mua cầu
+    let orderedByNote = '';
+    if (isSCBuy) {
+      try {
+        const d = JSON.parse(t.description || '{}');
+        if (d.ordered_by_name) orderedByNote = `<div style="font-size:11px;color:var(--accent2);margin-top:2px">🧑 Người tạo: ${d.ordered_by_name}</div>`;
+      } catch(e) {}
+    }
+    // Ghi chú điều chỉnh kho
+    let adjNote = '';
+    if (isSCAdj) {
+      try {
+        const d = JSON.parse(t.description || '{}');
+        if (d.note) adjNote = `<div style="font-size:11px;color:var(--muted);margin-top:2px">${d.note}</div>`;
+        if (d.admin_name) adjNote += `<div style="font-size:11px;color:var(--purple);margin-top:1px">⚙️ Admin: ${d.admin_name}</div>`;
+      } catch(e) {}
+    }
+
     const sessionName = t.sessions?.title
       ? `<div style="font-size:11px;color:var(--accent2);margin-top:2px"><i class="ph ph-calendar-check"></i> ${t.sessions.title}</div>`
-      : (t.description ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${t.description}</div>` : '');
+      : (t.description && !isSCBuy && !isSCAdj ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${t.description}</div>` : '');
     const receiptBtn = t.receipt_url
       ? `<button onclick="openLightbox('${t.receipt_url}')"
            style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;
            font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px"><i class="ph-bold ph-image"></i> Xem hóa đơn</button>` : '';
+    // Icon & color
+    const iconHtml = isSCBuy
+      ? `<div class="ftx-icon" style="background:rgba(200,255,71,0.12)"><i class="ph-bold ph-shuttlecock" style="font-size:16px;color:var(--accent)"></i></div>`
+      : isSCAdj
+      ? `<div class="ftx-icon" style="background:rgba(191,90,242,0.12)"><i class="ph-bold ph-sliders" style="font-size:16px;color:var(--purple)"></i></div>`
+      : `<div class="ftx-icon ${isIn?'ftx-in':t.status==='pending'?'ftx-pend':'ftx-out'}">${isIn?'↑':'↓'}</div>`;
+    const amtColor = isSCBuy ? 'var(--accent)' : isSCAdj ? 'var(--purple)' : isIn ? 'var(--green)' : 'var(--red)';
+    const amtText  = isSCBuy ? '-' + fmt(Math.abs(t.amount)) + ' (quỹ nhóm)'
+      : isSCAdj ? (() => { try { const d=JSON.parse(t.description||'{}'); const s=(d.delta||0)>=0?'+':''; return s+(d.delta||0)+' trái'; } catch(e){return '—';} })()
+      : (isIn?'+':'') + fmt(t.amount);
     return `
       <div class="ftx-row ${stCls}">
-        <div class="ftx-icon ${isIn?'ftx-in':t.status==='pending'?'ftx-pend':'ftx-out'}">${isIn?'↑':'↓'}</div>
+        ${iconHtml}
         <div style="flex:1;min-width:0">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div>
               <div style="font-size:13px;font-weight:600">${typeLabel}</div>
               ${sessionName}
+              ${orderedByNote}
+              ${adjNote}
               <div style="font-size:11px;color:var(--muted);margin-top:2px">${new Date(t.created_at).toLocaleDateString('vi-VN')} · ${status}</div>
             </div>
-            <div style="font-size:15px;font-weight:700;color:${isIn?'var(--green)':'var(--red)'}">
-              ${isIn?'+':''}${fmt(t.amount)}
+            <div style="font-size:15px;font-weight:700;color:${amtColor}">
+              ${amtText}
             </div>
           </div>
           ${receiptBtn}
@@ -4552,12 +5081,16 @@ let adminTab = 'pending';
 async function loadAdminPage() {
   if (!me?.is_admin) return toast('Không có quyền admin', 'err');
 
-  // Tổng quỹ
+  // Tổng quỹ = tổng fund_balance - tiền cầu đã trích
   const { data: profiles } = await db.from('profiles').select('id,name,fund_balance').order('name');
-  const total = (profiles||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
-  const members = (profiles||[]).length;
+  const { data: scTxnsA }  = await db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed');
+  const profileTotalA = (profiles||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
+  const scSpendA      = (scTxnsA||[]).reduce((s,t) => s+Math.abs(t.amount||0), 0);
+  const total         = profileTotalA - scSpendA;
+  const members       = (profiles||[]).length;
   document.getElementById('admin-total-fund').textContent = fmt(total);
-  document.getElementById('admin-fund-sub').textContent   = `${members} thành viên`;
+  document.getElementById('admin-fund-sub').textContent   =
+    `${members} thành viên` + (scSpendA > 0 ? ` · 🏸 Đã trích cầu: ${fmt(scSpendA)}` : '');
 
   // Pending count badge
   const { data: pending } = await db.from('fund_transactions')
@@ -5465,6 +5998,154 @@ if (document.readyState === 'loading') {
         ✓ Lưu cài đặt
       </button>
     </div>
+  </div>
+</div>
+<!-- ══════════════════════════════
+     BOTTOM SHEET: ĐIỀU CHỈNH KHO CẦU (ADMIN)
+══════════════════════════════ -->
+<div class="sheet-bg" id="adj-sc-sheet-bg" onclick="closeAdjustSCSheet(event)">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:4px">
+      <i class="ph-bold ph-sliders" style="color:var(--purple)"></i> Điều chỉnh kho cầu
+    </div>
+    <div style="font-size:12px;color:var(--purple);background:rgba(191,90,242,0.1);border:0.5px solid rgba(191,90,242,0.25);
+      border-radius:10px;padding:8px 12px;margin-bottom:18px">
+      <i class="ph-bold ph-shield-check"></i> Chỉ admin mới có quyền điều chỉnh số lượng kho
+    </div>
+
+    <div class="fg">
+      <label class="fl">Số trái hiện tại trong kho</label>
+      <div style="font-size:26px;font-weight:800;color:var(--accent);margin-bottom:14px" id="adj-sc-current">—</div>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Số trái sau điều chỉnh</label>
+      <input class="fi" id="adj-sc-new" type="number" min="0" placeholder="0"
+        style="font-size:22px;font-weight:800;color:var(--purple);text-align:center">
+    </div>
+
+    <div class="fg">
+      <label class="fl">Ghi chú lý do <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(tuỳ chọn)</span></label>
+      <input class="fi" id="adj-sc-note" type="text" placeholder="Vd: Kiểm kê thực tế, cầu hỏng...">
+    </div>
+
+    <button class="btn" onclick="confirmAdjustSC()"
+      style="background:rgba(191,90,242,0.18);border:0.5px solid rgba(191,90,242,0.4);color:var(--purple)">
+      <i class="ph-bold ph-check"></i> Xác nhận điều chỉnh
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     BOTTOM SHEET: MUA ỐNG CẦU
+══════════════════════════════ -->
+<div class="sheet-bg" id="buy-tube-sheet-bg" onclick="closeBuyTubeSheet(event)">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:6px">
+      <i class="ph-bold ph-shopping-cart" style="color:var(--accent)"></i> Mua ống cầu
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:4px">
+      Trích từ quỹ nhóm · Mặc định 1 ống = 12 trái
+    </div>
+    <div id="buy-tube-ordered-by" style="font-size:12px;color:var(--accent2);margin-bottom:14px;display:none">
+      <i class="ph ph-user"></i> Lệnh sẽ được ghi nhận là của <strong id="buy-tube-ordered-by-name"></strong>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Số ống mua <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(mỗi ống = 12 trái)</span></label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <button onclick="adjustTubeQty(-1)"
+          style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.08);border:0.5px solid rgba(255,255,255,.15);
+          color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">−</button>
+        <div id="tube-qty-display"
+          style="flex:1;text-align:center;font-size:24px;font-weight:800;color:var(--accent)">1</div>
+        <button onclick="adjustTubeQty(1)"
+          style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.08);border:0.5px solid rgba(255,255,255,.15);
+          color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Giá 1 ống (đ)</label>
+      <input class="fi" id="tube-price" type="number" placeholder="320000" value="320000"
+        oninput="updateTubeSummary()">
+    </div>
+
+    <!-- Summary -->
+    <div id="tube-summary" style="background:rgba(200,255,71,0.07);border:0.5px solid rgba(200,255,71,0.22);
+      border-radius:12px;padding:12px 14px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted);font-size:12px">Tổng số trái</span>
+        <span id="tube-sum-birds" style="font-size:13px;font-weight:700;color:var(--accent)">12 trái</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted);font-size:12px">Giá mỗi trái</span>
+        <span id="tube-sum-price-per" style="font-size:13px;font-weight:700;color:var(--accent2)">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-top:0.5px solid rgba(255,255,255,.08);padding-top:8px;margin-top:4px">
+        <span style="color:var(--muted);font-size:12px">Tổng chi từ quỹ nhóm</span>
+        <span id="tube-sum-total" style="font-size:15px;font-weight:800;color:var(--red)">—</span>
+      </div>
+    </div>
+
+    <button class="btn" onclick="confirmBuyTube()"><i class="ph-bold ph-shopping-cart"></i> Xác nhận mua</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     BOTTOM SHEET: GHI CẦU ĐÃ DÙNG
+══════════════════════════════ -->
+<div class="sheet-bg" id="use-sc-sheet-bg" onclick="closeUseShuttlecockSheet(event)">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:6px">
+      <i class="ph-bold ph-shuttlecock" style="color:var(--accent)"></i> Ghi cầu đã dùng
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px" id="use-sc-inventory-hint">
+      Kho còn: <strong id="use-sc-stock">—</strong> trái · <strong id="use-sc-price-per">—</strong>/trái
+    </div>
+
+    <div class="fg">
+      <label class="fl">Số trái cầu đã dùng</label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <button onclick="adjustUseSC(-1)"
+          style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.08);border:0.5px solid rgba(255,255,255,.15);
+          color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">−</button>
+        <input class="fi" id="use-sc-count" type="number" min="1" value="3"
+          style="flex:1;text-align:center;font-size:22px;font-weight:800;color:var(--accent)"
+          oninput="updateUseSCSummary()">
+        <button onclick="adjustUseSC(1)"
+          style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.08);border:0.5px solid rgba(255,255,255,.15);
+          color:var(--text);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+      </div>
+    </div>
+
+    <!-- Cost preview -->
+    <div id="use-sc-summary" style="background:rgba(255,107,71,0.07);border:0.5px solid rgba(255,107,71,0.22);
+      border-radius:12px;padding:12px 14px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted);font-size:12px">Chi phí cầu</span>
+        <span id="use-sc-cost" style="font-size:13px;font-weight:700;color:var(--accent2)">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:var(--muted);font-size:12px">Số người tham gia</span>
+        <span id="use-sc-ppl" style="font-size:13px;font-weight:700">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;border-top:0.5px solid rgba(255,255,255,.08);padding-top:8px;margin-top:4px">
+        <span style="color:var(--muted);font-size:12px">Mỗi người đóng thêm</span>
+        <span id="use-sc-per-person" style="font-size:15px;font-weight:800;color:var(--accent3)">—</span>
+      </div>
+    </div>
+    <div id="use-sc-warn" style="display:none;background:rgba(255,69,58,0.1);border:0.5px solid rgba(255,69,58,0.3);
+      border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--red)">
+      ⚠️ Số cầu dùng vượt quá kho! Vui lòng mua thêm ống cầu.
+    </div>
+
+    <button class="btn" id="use-sc-confirm-btn" onclick="confirmUseShuttlecock()">
+      <i class="ph-bold ph-check"></i> Thêm vào chi phí buổi
+    </button>
   </div>
 </div>
 
