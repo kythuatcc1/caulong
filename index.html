@@ -753,11 +753,11 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
   <button class="snav-item" id="snav-create" onclick="goPage('pg-create')">
     <i class="ph-bold ph-plus snav-icon"></i> Tạo buổi
   </button>
-  <div id="snav-admin" style="display:none">
-    <button class="snav-item" onclick="goPage('pg-admin')">
+  <div id="snav-admin-group" style="display:none">
+    <button class="snav-item" id="snav-admin" onclick="goPage('pg-admin')">
       <i class="ph-bold ph-key snav-icon"></i> Admin quỹ
     </button>
-    <button class="snav-item" onclick="openDiscountSettings()" style="color:var(--muted)">
+    <button class="snav-item" id="snav-discount" onclick="setSnavActive('discount');openDiscountSettings()">
       <i class="ph-bold ph-gear snav-icon"></i> Cài đặt ưu đãi
     </button>
   </div>
@@ -1732,7 +1732,7 @@ function goPage(id) {
   // Highlight đúng nút
   const navMap = { 'pg-home':'home', 'pg-create':'create', 'pg-fund':'fund', 'pg-admin':'admin' };
   const active = navMap[id] || '';
-  ['home','fund','create','admin'].forEach(n => {
+  ['home','fund','create','admin','discount'].forEach(n => {
     document.getElementById('gnav-'+n)?.classList.toggle('active', active===n);
     // legacy ids còn trong DOM (nếu có)
     document.getElementById('nav-'+n)?.classList.toggle('active', active===n);
@@ -1753,6 +1753,12 @@ function goPage(id) {
 
 function isDesktop() { return window.innerWidth >= 768; }
 
+function setSnavActive(name) {
+  ['home','fund','create','admin','discount'].forEach(n => {
+    document.getElementById('snav-'+n)?.classList.toggle('active', n === name);
+  });
+}
+
 function initDesktopLayout() {
   if (!isDesktop()) return;
   const sidebar = document.getElementById('desktop-sidebar');
@@ -1760,7 +1766,7 @@ function initDesktopLayout() {
   document.getElementById('desktop-main').style.marginLeft = me ? 'var(--sidebar-w)' : '0';
   if (me) {
     document.getElementById('sidebar-username').textContent = me.name;
-    document.getElementById('snav-admin').style.display = me.is_admin ? '' : 'none';
+    document.getElementById('snav-admin-group').style.display = me.is_admin ? '' : 'none';
     document.getElementById('snav-bg-admin').style.display = me.is_admin ? '' : 'none';
     const _homeBgBtn = document.getElementById('home-bg-btn');
     if (_homeBgBtn) _homeBgBtn.style.display = me.is_admin ? '' : 'none';
