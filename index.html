@@ -763,13 +763,13 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
   </div>
   <div id="sidebar-user">
     <div id="snav-bg-admin" style="display:none">
-      <button onclick="triggerBgPicker()" class="snav-item" style="color:var(--muted)">
+      <button onclick="triggerBgPicker()" class="snav-item" id="snav-bgpicker">
         <i class="ph-bold ph-image snav-icon"></i> Đổi hình nền
       </button>
-      <button onclick="openBgAdjust()" class="snav-item" style="color:var(--muted)">
+      <button onclick="setSnavActive('bgadjust');openBgAdjust()" class="snav-item" id="snav-bgadjust">
         <i class="ph-bold ph-magnifying-glass snav-icon"></i> Chỉnh vị trí
       </button>
-      <button onclick="removeBgImage()" class="snav-item" style="color:var(--muted);font-size:12px">
+      <button onclick="removeBgImage()" class="snav-item" id="snav-bgremove" style="font-size:12px">
         <i class="ph-bold ph-trash snav-icon"></i> Xoá hình nền
       </button>
     </div>
@@ -1754,7 +1754,7 @@ function goPage(id) {
 function isDesktop() { return window.innerWidth >= 768; }
 
 function setSnavActive(name) {
-  ['home','fund','create','admin','discount'].forEach(n => {
+  ['home','fund','create','admin','discount','bgadjust','bgpicker','bgremove'].forEach(n => {
     document.getElementById('snav-'+n)?.classList.toggle('active', n === name);
   });
 }
@@ -2940,6 +2940,9 @@ async function addGuest() {
   document.getElementById('guest-name-input').value = '';
   renderGuestList();
   toast(`✓ Đã thêm ${name}`, 'ok');
+  // Đóng form sau khi thêm xong
+  const form = document.getElementById('add-guest-form');
+  if (form && form.style.display !== 'none') toggleGuestForm();
 }
 
 async function removeGuest(gid) {
@@ -5645,6 +5648,8 @@ function updateDiscountTotal() {
 
 function closeDiscountSettings() {
   document.getElementById('discount-settings-panel').style.display = 'none';
+  // Tắt tab Cài đặt ưu đãi, restore lại Admin quỹ
+  setSnavActive('admin');
 }
 
 async function confirmDiscountSettings() {
@@ -5771,6 +5776,8 @@ function openBgAdjust() {
 function closeBgAdjust() {
   const panel = document.getElementById('bg-adjust-panel');
   if (panel) panel.style.display = 'none';
+  // Tắt tab Chỉnh vị trí, restore lại Admin quỹ
+  setSnavActive('admin');
 }
 
 function onBgZoom(v) {
