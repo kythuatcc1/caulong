@@ -4488,95 +4488,109 @@ function getTypeLabel(t) {
 // Cache trạng thái kho cầu
 let scState = { remaining: 0, pricePerBird: 0, batches: [], totalBought: 0, totalUsed: 0, scItems: [] };
 
-// Nguon DUY NHAT cho remaining + pricePerBird: shuttlecock_items
-// fund_transactions chi dung cho hien thi lich su
+// NGUON DUY NHAT: shuttlecock_items cho moi thu lien quan den trai cau
 async function loadShuttlecockInventory() {
   if (!db || !me) return;
 
-  // Lay toan bo trai cau tu shuttlecock_items (NGUON CHINH)
   const { data: scItems } = await db.from('shuttlecock_items')
-    .select('id, transaction_id, price, action_type, status, item_index, adjusted_by_name, note, created_at')
+    .select('id, transaction_id, price, action_type, status, item_index, adjusted_by_name, note, tubes, removed_at, removed_by_name, created_at')
     .order('created_at', { ascending: true });
 
   const allItems     = scItems || [];
   const inStockItems = allItems.filter(i => i.status === 'in_stock');
 
-  // remaining = so trai con trong kho (status='in_stock')
-  const remaining = inStockItems.length;
-
-  // pricePerBird = TB gia cac trai co price > 0 trong kho
-  // (bo qua cac trai price=0 de tranh keo thap gia TB)
-  const pricedItems = inStockItems.filter(i => (i.price || 0) > 0);
+  // remaining & pricePerBird HOAN TOAN tu shuttlecock_items
+  const remaining    = inStockItems.length;
+  const pricedItems  = inStockItems.filter(i => (i.price || 0) > 0);
   const pricePerBird = pricedItems.length > 0
-    ? Math.round(pricedItems.reduce((s, i) => s + i.price, 0) / pricedItems.length)
-    : 0;
+    ? Math.round(pricedItems.reduce((s, i) => s + i.price, 0) / pricedItems.length) : 0;
 
-  // Lay lich su chi de hien thi batches (khong dung de tinh toan)
-  const { data: buyTxns } = await db.from('fund_transactions')
-    .select('id, amount, description, created_at, user_id')
-    .eq('type', 'shuttlecock_buy')
-    .order('created_at', { ascending: false });
+  // totalCost = tong gia tri tat ca trai da mua (action_type = 'buy')
+  const totalCost = allItems
+    .filter(i => i.action_type === 'buy')
+    .reduce((s, i) => s + (i.price || 0), 0);
 
-  const { data: useTxns } = await db.from('fund_transactions')
-    .select('id, description, created_at')
-    .eq('type', 'shuttlecock_use')
-    .order('created_at', { ascending: false });
-
-  const { data: adjTxns } = await db.from('fund_transactions')
-    .select('id, description, created_at, user_id')
-    .eq('type', 'shuttlecock_adjust')
-    .order('created_at', { ascending: false });
-
-  // Tinh totalCost tu fund_transactions (chi de tham khao)
-  let totalBought = 0, totalUsed = 0, totalAdj = 0, totalCost = 0;
-  (buyTxns || []).forEach(t => {
-    try {
-      const d = JSON.parse(t.description || '{}');
-      const count = (d.count || 12) * (d.tubes || 1);
-      totalBought += count;
-      totalCost   += Math.abs(t.amount || 0);
-    } catch(e) {}
-  });
-  (useTxns || []).forEach(t => {
-    try { totalUsed += (JSON.parse(t.description || '{}')).count || 0; } catch(e) {}
-  });
-  (adjTxns || []).forEach(t => {
-    try { totalAdj += (JSON.parse(t.description || '{}')).delta || 0; } catch(e) {}
-  });
-
-  // Map transaction_id -> items cho hien thi lich su
-  const itemsByTx = {};
+  // Build batches TU shuttlecock_items (group by transaction_id)
+  const txMap = {};
   allItems.forEach(item => {
-    if (!itemsByTx[item.transaction_id]) itemsByTx[item.transaction_id] = [];
-    itemsByTx[item.transaction_id].push(item);
+    const key = item.transaction_id || item.id;
+    if (!txMap[key]) txMap[key] = [];
+    txMap[key].push(item);
   });
 
-  // Build batches cho lich su
   const batches = [];
-  (buyTxns || []).forEach(t => {
-    try {
-      const d = JSON.parse(t.description || '{}');
-      const count = (d.count || 12) * (d.tubes || 1);
-      const price = Math.abs(t.amount || 0);
-      batches.push({ id: t.id, count, price, date: t.created_at,
-        pricePerBird: count > 0 ? Math.round(price / count) : 0,
-        orderedByName: d.ordered_by_name || null, type: 'buy' });
-    } catch(e) {}
+  Object.entries(txMap).forEach(([txId, items]) => {
+    const first       = items[0];
+    const actionType  = first.action_type; // 'buy' | 'add' | 'remove'
+    const date        = first.created_at;
+    const byName      = first.adjusted_by_name || '';
+    const note        = first.note || '';
+    const totalPrice  = items.reduce((s, i) => s + (i.price || 0), 0);
+    const avgPrice    = items.length > 0 ? Math.round(totalPrice / items.length) : 0;
+
+    if (actionType === 'buy') {
+      // Mua ong cau: count = so trai, price = tong tien
+      const tubesCount = first.tubes || 1;
+      batches.push({
+        id: txId, type: 'buy', date,
+        count: items.length,
+        tubes: tubesCount,
+        price: totalPrice,
+        pricePerBird: avgPrice,
+        orderedByName: byName,
+        items
+      });
+
+    } else if (actionType === 'add') {
+      // Dieu chinh tang kho
+      batches.push({
+        id: txId, type: 'adjust', date,
+        count: items.length,
+        price: totalPrice,
+        pricePerBird: avgPrice,
+        orderedByName: byName,
+        note, items
+      });
+
+    } else if (actionType === 'remove') {
+      // Dieu chinh giam kho (items bi removed)
+      const removedItems = items.filter(i => i.status === 'removed');
+      if (removedItems.length > 0) {
+        const removeDate = removedItems[0].removed_at || date;
+        batches.push({
+          id: txId + '_rm', type: 'adjust', date: removeDate,
+          count: -removedItems.length,
+          price: 0, pricePerBird: 0,
+          orderedByName: removedItems[0].removed_by_name || byName,
+          note, items: removedItems
+        });
+      }
+    }
   });
-  (adjTxns || []).forEach(t => {
-    try {
-      const d = JSON.parse(t.description || '{}');
-      const items = itemsByTx[t.id] || [];
-      const avgP = items.length > 0
-        ? Math.round(items.reduce((s,i) => s+(i.price||0),0)/items.length) : 0;
-      batches.push({ id: t.id, count: d.delta, price: 0, date: t.created_at,
-        pricePerBird: avgP, orderedByName: d.admin_name || null,
-        note: d.note || '', type: 'adjust', items });
-    } catch(e) {}
+
+  // Gop cac item bi removed (update tu adjust) theo removed_at
+  const removedByTx = {};
+  allItems.filter(i => i.status === 'removed' && i.action_type !== 'remove').forEach(i => {
+    const key = (i.removed_at || i.created_at).substring(0, 16);
+    if (!removedByTx[key]) removedByTx[key] = [];
+    removedByTx[key].push(i);
   });
+  Object.entries(removedByTx).forEach(([key, items]) => {
+    batches.push({
+      id: 'rm_' + key, type: 'adjust',
+      date: items[0].removed_at || items[0].created_at,
+      count: -items.length, price: 0, pricePerBird: 0,
+      orderedByName: items[0].removed_by_name || '',
+      note: items[0].note || '', items
+    });
+  });
+
   batches.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  scState = { remaining, pricePerBird, batches, totalBought, totalUsed, totalAdj, totalCost,
+  scState = { remaining, pricePerBird, batches,
+    totalBought: allItems.filter(i => i.action_type === 'buy').length,
+    totalUsed: allItems.filter(i => i.status === 'used').length,
+    totalAdj: 0, totalCost,
     scItems: allItems, inStockItems };
 
   return scState;
@@ -4810,7 +4824,8 @@ async function confirmAdjustSC() {
       .map(i => i.id);
     if (toRemove.length > 0) {
       const { error: rmErr } = await db.from('shuttlecock_items')
-        .update({ status: 'removed', note: note || null })
+        .update({ status: 'removed', note: note || null,
+          removed_at: now, removed_by_name: me.name || '' })
         .in('id', toRemove);
       if (rmErr) { load(false); toast(`⚠️ Lỗi cập nhật shuttlecock_items: ${rmErr.message}`, 'err'); return; }
     }
@@ -4890,7 +4905,8 @@ async function confirmBuyTube() {
   const rows = Array.from({ length: birds }, (_, i) => ({
     transaction_id: buyTxId, price: pricePerBird,
     action_type: 'buy', status: 'in_stock',
-    adjusted_by_name: me.name || '', item_index: i + 1
+    adjusted_by_name: me.name || '', item_index: i + 1,
+    tubes: tubeQty
   }));
   const { error: itemErr } = await db.from('shuttlecock_items').insert(rows);
   if (itemErr) toast(`⚠️ Lỗi lưu shuttlecock_items: ${itemErr.message}`, 'err');
@@ -4971,20 +4987,25 @@ function adjustUseSC(delta) {
 }
 
 function updateUseSCSummary() {
-  const count      = parseInt(document.getElementById('use-sc-count').value) || 0;
-  const { pricePerBird, remaining } = scState;
-  const cost       = Math.round(count * pricePerBird);
+  const count    = parseInt(document.getElementById('use-sc-count').value) || 0;
+  const { inStockItems, remaining } = scState;
+  const overStock = count > remaining;
 
-  // Đếm số người được chọn thanh toán cầu
+  // Lấy đúng N trái sẽ dùng (cũ nhất trước - FIFO) và tính tổng giá thực tế
+  const birdsToUse = (inStockItems || [])
+    .slice()
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .slice(0, count);
+  const totalCost = birdsToUse.reduce((s, i) => s + (i.price || 0), 0);
+  const hasPrice  = totalCost > 0;
+
   const checkedBoxes = document.querySelectorAll('.sc-payer-cb:checked');
-  const ppl = checkedBoxes.length;
+  const ppl       = checkedBoxes.length;
+  const perPerson = ppl > 0 ? Math.round(totalCost / ppl) : 0;
 
-  const perPerson    = ppl > 0 ? Math.round(cost / ppl) : 0;
-  const overStock    = count > remaining;
-
-  document.getElementById('use-sc-cost').textContent       = pricePerBird > 0 ? fmt(cost) : '—';
+  document.getElementById('use-sc-cost').textContent       = hasPrice ? fmt(totalCost) : '—';
   document.getElementById('use-sc-ppl').textContent        = ppl + ' người đánh';
-  document.getElementById('use-sc-per-person').textContent = (pricePerBird > 0 && ppl > 0) ? fmt(perPerson) : '—';
+  document.getElementById('use-sc-per-person').textContent = (hasPrice && ppl > 0) ? fmt(perPerson) : '—';
   document.getElementById('use-sc-warn').style.display     = overStock ? '' : 'none';
   document.getElementById('use-sc-confirm-btn').disabled   = overStock;
 }
@@ -4993,14 +5014,20 @@ async function confirmUseShuttlecock() {
   const count = parseInt(document.getElementById('use-sc-count').value) || 0;
   if (!count) return toast('Nhập số cầu đã dùng', 'err');
 
-  const { pricePerBird, remaining } = scState;
+  const { inStockItems, remaining } = scState;
   if (count > remaining) return toast('Số cầu dùng vượt kho!', 'err');
 
   const session = curSession?.session;
   if (!session) return toast('Không tìm thấy buổi', 'err');
 
-  const totalCost = Math.round(count * pricePerBird);
-  if (!totalCost) return toast('Chưa có giá cầu trong kho. Vui lòng mua ống cầu trước.', 'err');
+  // Lấy đúng N trái FIFO (cũ nhất trước), dùng giá thực tế từng trái
+  const birdsToUse = (inStockItems || [])
+    .slice()
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .slice(0, count);
+  const usedIds   = birdsToUse.map(i => i.id);
+  const totalCost = birdsToUse.reduce((s, i) => s + (i.price || 0), 0);
+  if (!totalCost) return toast('Chưa có giá cầu trong kho. Vui lòng nhập giá trong Supabase.', 'err');
 
   // Lấy danh sách người thanh toán cầu được chọn
   const checkedBoxes = document.querySelectorAll('.sc-payer-cb:checked');
@@ -5055,16 +5082,23 @@ async function confirmUseShuttlecock() {
     }
   }
 
-  // 3. Ghi nhận số cầu đã dùng vào fund_transactions (để trừ kho)
+  // 3. Đánh dấu từng trái đã dùng trong shuttlecock_items (status='used')
+  if (usedIds.length > 0) {
+    const { error: useErr } = await db.from('shuttlecock_items')
+      .update({ status: 'used', removed_at: now, removed_by_name: me.name || '' })
+      .in('id', usedIds);
+    if (useErr) console.warn('shuttlecock_items use update error:', useErr.message);
+  }
+  // Vẫn ghi fund_transactions để giữ lịch sử tài chính
   await db.from('fund_transactions').insert({
-    user_id:      me.id,
-    amount:       0,
-    type:         'shuttlecock_use',
-    description:  JSON.stringify({ session_id: session.id, count, cost: totalCost }),
-    session_id:   session.id,
-    status:       'confirmed',
-    confirmed_by: me.id,
-    confirmed_at: now
+    user_id: me.id, amount: 0, type: 'shuttlecock_use',
+    description: JSON.stringify({
+      session_id: session.id, count, cost: totalCost,
+      bird_ids: usedIds,
+      bird_prices: birdsToUse.map(i => i.price)
+    }),
+    session_id: session.id, status: 'confirmed',
+    confirmed_by: me.id, confirmed_at: now
   });
 
   load(false);
