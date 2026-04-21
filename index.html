@@ -4486,114 +4486,98 @@ function getTypeLabel(t) {
 // ═══════════════════════════════════════════════
 
 // Cache trạng thái kho cầu
-let scState = { remaining: 0, pricePerBird: 0, batches: [], totalBought: 0, totalUsed: 0 };
+let scState = { remaining: 0, pricePerBird: 0, batches: [], totalBought: 0, totalUsed: 0, scItems: [] };
 
-// Tính toán trạng thái kho từ fund_transactions + shuttlecock_items
+// Nguon DUY NHAT cho remaining + pricePerBird: shuttlecock_items
+// fund_transactions chi dung cho hien thi lich su
 async function loadShuttlecockInventory() {
   if (!db || !me) return;
 
-  // Lấy tất cả giao dịch mua cầu
+  // Lay toan bo trai cau tu shuttlecock_items (NGUON CHINH)
+  const { data: scItems } = await db.from('shuttlecock_items')
+    .select('id, transaction_id, price, action_type, status, item_index, adjusted_by_name, note, created_at')
+    .order('created_at', { ascending: true });
+
+  const allItems     = scItems || [];
+  const inStockItems = allItems.filter(i => i.status === 'in_stock');
+
+  // remaining = so trai con trong kho (status='in_stock')
+  const remaining = inStockItems.length;
+
+  // pricePerBird = TB gia cac trai co price > 0 trong kho
+  // (bo qua cac trai price=0 de tranh keo thap gia TB)
+  const pricedItems = inStockItems.filter(i => (i.price || 0) > 0);
+  const pricePerBird = pricedItems.length > 0
+    ? Math.round(pricedItems.reduce((s, i) => s + i.price, 0) / pricedItems.length)
+    : 0;
+
+  // Lay lich su chi de hien thi batches (khong dung de tinh toan)
   const { data: buyTxns } = await db.from('fund_transactions')
     .select('id, amount, description, created_at, user_id')
     .eq('type', 'shuttlecock_buy')
     .order('created_at', { ascending: false });
 
-  // Lấy tất cả giao dịch dùng cầu
   const { data: useTxns } = await db.from('fund_transactions')
     .select('id, description, created_at')
     .eq('type', 'shuttlecock_use')
     .order('created_at', { ascending: false });
 
-  // Lấy tất cả giao dịch điều chỉnh kho (admin)
   const { data: adjTxns } = await db.from('fund_transactions')
     .select('id, description, created_at, user_id')
     .eq('type', 'shuttlecock_adjust')
     .order('created_at', { ascending: false });
 
-  // Lấy chi tiết giá từng trái từ bảng shuttlecock_items
-  const { data: scItems } = await db.from('shuttlecock_items')
-    .select('id, transaction_id, price, action_type, status, item_index, adjusted_by_name, note, created_at')
-    .order('created_at', { ascending: false });
+  // Tinh totalCost tu fund_transactions (chi de tham khao)
+  let totalBought = 0, totalUsed = 0, totalAdj = 0, totalCost = 0;
+  (buyTxns || []).forEach(t => {
+    try {
+      const d = JSON.parse(t.description || '{}');
+      const count = (d.count || 12) * (d.tubes || 1);
+      totalBought += count;
+      totalCost   += Math.abs(t.amount || 0);
+    } catch(e) {}
+  });
+  (useTxns || []).forEach(t => {
+    try { totalUsed += (JSON.parse(t.description || '{}')).count || 0; } catch(e) {}
+  });
+  (adjTxns || []).forEach(t => {
+    try { totalAdj += (JSON.parse(t.description || '{}')).delta || 0; } catch(e) {}
+  });
 
-  // Map transaction_id -> items
+  // Map transaction_id -> items cho hien thi lich su
   const itemsByTx = {};
-  (scItems || []).forEach(item => {
+  allItems.forEach(item => {
     if (!itemsByTx[item.transaction_id]) itemsByTx[item.transaction_id] = [];
     itemsByTx[item.transaction_id].push(item);
   });
 
-  // ── Tính pricePerBird ưu tiên từ shuttlecock_items ──
-  // Lấy giá TB của các trái có price > 0 trong shuttlecock_items (mới nhất)
-  let priceFromItems = 0;
-  const itemsWithPrice = (scItems || []).filter(i => (i.price || 0) > 0);
-  if (itemsWithPrice.length > 0) {
-    // Lấy giá của batch mới nhất (cùng transaction_id với item đầu tiên)
-    const latestTxId = itemsWithPrice[0].transaction_id;
-    const latestBatch = itemsWithPrice.filter(i => i.transaction_id === latestTxId);
-    priceFromItems = latestBatch.reduce((s, i) => s + i.price, 0) / latestBatch.length;
-  }
-
-  let totalBought = 0, totalUsed = 0, totalCost = 0, totalAdj = 0;
-  let priceFromBuy = 0; // fallback từ lần mua ống
+  // Build batches cho lich su
   const batches = [];
-
   (buyTxns || []).forEach(t => {
     try {
       const d = JSON.parse(t.description || '{}');
       const count = (d.count || 12) * (d.tubes || 1);
       const price = Math.abs(t.amount || 0);
-      totalBought += count;
-      totalCost   += price;
-      if (!priceFromBuy && count > 0) priceFromBuy = price / count;
-      batches.push({
-        id: t.id, count, price, date: t.created_at,
+      batches.push({ id: t.id, count, price, date: t.created_at,
         pricePerBird: count > 0 ? Math.round(price / count) : 0,
-        orderedByName: d.ordered_by_name || null,
-        type: 'buy'
-      });
+        orderedByName: d.ordered_by_name || null, type: 'buy' });
     } catch(e) {}
   });
-
-  (useTxns || []).forEach(t => {
-    try {
-      const d = JSON.parse(t.description || '{}');
-      totalUsed += (d.count || 0);
-    } catch(e) {}
-  });
-
   (adjTxns || []).forEach(t => {
     try {
       const d = JSON.parse(t.description || '{}');
-      totalAdj += (d.delta || 0);
       const items = itemsByTx[t.id] || [];
-      batches.push({
-        id: t.id, count: d.delta, price: 0, date: t.created_at,
-        pricePerBird: items.length > 0
-          ? Math.round(items.reduce((s, i) => s + (i.price || 0), 0) / items.length)
-          : 0,
-        orderedByName: d.admin_name || null,
-        note: d.note || '', type: 'adjust',
-        items
-      });
+      const avgP = items.length > 0
+        ? Math.round(items.reduce((s,i) => s+(i.price||0),0)/items.length) : 0;
+      batches.push({ id: t.id, count: d.delta, price: 0, date: t.created_at,
+        pricePerBird: avgP, orderedByName: d.admin_name || null,
+        note: d.note || '', type: 'adjust', items });
     } catch(e) {}
   });
-
-  // Sort batches by date desc
   batches.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // Ưu tiên: giá từ shuttlecock_items → fallback giá từ shuttlecock_buy
-  const finalPricePerBird = priceFromItems > 0 ? priceFromItems : priceFromBuy;
-
-  scState = {
-    remaining: Math.max(0, totalBought - totalUsed + totalAdj),
-    pricePerBird: finalPricePerBird,
-    batches,
-    totalBought,
-    totalUsed,
-    totalAdj,
-    totalCost,
-    scItems: scItems || []
-  };
+  scState = { remaining, pricePerBird, batches, totalBought, totalUsed, totalAdj, totalCost,
+    scItems: allItems, inStockItems };
 
   return scState;
 }
@@ -4775,79 +4759,68 @@ async function confirmAdjustSC() {
   if (!me?.is_admin) return toast('Chỉ admin mới có thể điều chỉnh kho', 'err');
   const newVal = parseInt(document.getElementById('adj-sc-new').value);
   if (isNaN(newVal) || newVal < 0) return toast('Số lượng không hợp lệ', 'err');
-  const { remaining } = scState;
+  const { remaining, inStockItems } = scState;
   const delta = newVal - remaining;
   const note = document.getElementById('adj-sc-note').value.trim();
+  if (delta === 0) { closeAdjustSCSheet({}); return; }
 
-  // Thu thập giá từng trái nếu thêm
+  // Thu thập giá từng trái khi thêm
   let itemPrices = [];
   if (delta > 0) {
-    const inputs = document.querySelectorAll('#adj-sc-price-list input[data-price-idx]');
-    inputs.forEach(inp => itemPrices.push(parseFloat(inp.value) || 0));
+    document.querySelectorAll('#adj-sc-price-list input[data-price-idx]')
+      .forEach(inp => itemPrices.push(parseFloat(inp.value) || 0));
+    // Nếu không nhập đủ, điền 0 cho trái còn thiếu
+    while (itemPrices.length < delta) itemPrices.push(0);
   }
 
   load(true);
   const now = new Date().toISOString();
   const totalItemValue = itemPrices.reduce((s, p) => s + p, 0);
 
-  // 1) Insert fund_transactions (không truyền id — để DB tự sinh)
+  // 1) Tạo UUID ngay tại client — không cần query lại
+  const txId = crypto.randomUUID();
+
+  // 2) Ghi fund_transactions (kèm id tự tạo)
   const { error: txErr } = await db.from('fund_transactions').insert({
-    user_id:      me.id,
-    amount:       0,
-    type:         'shuttlecock_adjust',
-    description:  JSON.stringify({
+    id: txId,
+    user_id: me.id, amount: 0, type: 'shuttlecock_adjust',
+    description: JSON.stringify({
       delta, new_value: newVal, old_value: remaining, note,
-      admin_name: me.name || '',
-      has_item_prices: itemPrices.length > 0,
-      total_item_value: totalItemValue
+      admin_name: me.name || '', total_item_value: totalItemValue
     }),
-    status:       'confirmed',
-    confirmed_by: me.id,
-    confirmed_at: now
+    status: 'confirmed', confirmed_by: me.id, confirmed_at: now
   });
   if (txErr) { load(false); toast(txErr.message, 'err'); return; }
 
-  // 2) Query lại để lấy id thật vừa insert
-  let realTxId = null;
-  if (delta > 0 && itemPrices.length > 0) {
-    const { data: latest } = await db.from('fund_transactions')
-      .select('id')
-      .eq('type', 'shuttlecock_adjust')
-      .eq('user_id', me.id)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    realTxId = latest?.[0]?.id || null;
-    console.log('[SC_TX] realTxId from query:', realTxId);
-
-    // 3) Insert từng trái vào shuttlecock_items
+  if (delta > 0) {
+    // THÊM cầu → insert N dòng vào shuttlecock_items
     const rows = itemPrices.map((price, i) => ({
-      transaction_id:    realTxId,
-      price:             price,
-      action_type:       'add',
-      status:            'in_stock',
-      note:              note || null,
-      adjusted_by_name:  me.name || '',
-      item_index:        i + 1
+      transaction_id: txId, price, action_type: 'add',
+      status: 'in_stock', note: note || null,
+      adjusted_by_name: me.name || '', item_index: i + 1
     }));
-    console.log('[SC_ITEMS] Rows to insert:', JSON.stringify(rows));
+    const { error: addErr } = await db.from('shuttlecock_items').insert(rows);
+    if (addErr) { load(false); toast(`⚠️ Lỗi lưu shuttlecock_items: ${addErr.message}`, 'err'); return; }
 
-    const { error: itemErr } = await db.from('shuttlecock_items').insert(rows);
-    if (itemErr) {
-      console.error('[SC_ITEMS] Error:', itemErr);
-      load(false);
-      toast(`⚠️ Lỗi lưu giá cầu: ${itemErr.message} (code: ${itemErr.code})`, 'err');
-      // Vẫn tiếp tục vì fund_transactions đã lưu thành công
-    } else {
-      console.log('[SC_ITEMS] Insert OK ✓', rows.length, 'rows');
+  } else {
+    // GIẢM cầu → đánh dấu |delta| trái in_stock cũ nhất thành 'removed'
+    const toRemove = (inStockItems || [])
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .slice(0, Math.abs(delta))
+      .map(i => i.id);
+    if (toRemove.length > 0) {
+      const { error: rmErr } = await db.from('shuttlecock_items')
+        .update({ status: 'removed', note: note || null })
+        .in('id', toRemove);
+      if (rmErr) { load(false); toast(`⚠️ Lỗi cập nhật shuttlecock_items: ${rmErr.message}`, 'err'); return; }
     }
   }
 
   load(false);
   closeAdjustSCSheet({});
-  const sign = delta >= 0 ? '+' : '';
-  const priceInfo = itemPrices.length > 0 ? ` · ${fmt(totalItemValue)}` : '';
+  const sign = delta > 0 ? '+' : '';
+  const priceInfo = delta > 0 && totalItemValue > 0 ? ` · ${fmt(totalItemValue)}` : '';
   toast(`✓ Điều chỉnh kho: ${sign}${delta} trái → còn ${newVal} trái${priceInfo}`, 'ok');
-
   await loadShuttlecockInventory();
   renderShuttlecockCard();
 }
@@ -4897,27 +4870,34 @@ async function confirmBuyTube() {
   if (!me?.id) return;
 
   load(true);
-  const total  = price * tubeQty;
-  const birds  = 12   * tubeQty;
-  const now    = new Date().toISOString();
+  const total = price * tubeQty;
+  const birds = 12   * tubeQty;
+  const pricePerBird = Math.round(total / birds);
+  const now   = new Date().toISOString();
 
+  // 1) Ghi fund_transactions
+  const buyTxId = crypto.randomUUID();
   const { error } = await db.from('fund_transactions').insert({
-    user_id:      me.id,
-    amount:       -total,            // âm = chi quỹ nhóm (không trừ profile balance)
-    type:         'shuttlecock_buy',
-    description:  JSON.stringify({ tubes: tubeQty, count: birds, price: total, ordered_by_name: me.name || '' }),
-    status:       'confirmed',
-    confirmed_by: me.id,
-    confirmed_at: now
+    id: buyTxId,
+    user_id: me.id, amount: -total,
+    type: 'shuttlecock_buy',
+    description: JSON.stringify({ tubes: tubeQty, count: birds, price: total, ordered_by_name: me.name || '' }),
+    status: 'confirmed', confirmed_by: me.id, confirmed_at: now
   });
+  if (error) { load(false); toast(error.message, 'err'); return; }
+
+  // 3) Insert từng trái vào shuttlecock_items (giá chia đều)
+  const rows = Array.from({ length: birds }, (_, i) => ({
+    transaction_id: buyTxId, price: pricePerBird,
+    action_type: 'buy', status: 'in_stock',
+    adjusted_by_name: me.name || '', item_index: i + 1
+  }));
+  const { error: itemErr } = await db.from('shuttlecock_items').insert(rows);
+  if (itemErr) toast(`⚠️ Lỗi lưu shuttlecock_items: ${itemErr.message}`, 'err');
 
   load(false);
-  if (error) { toast(error.message, 'err'); return; }
-
   closeBuyTubeSheet({});
-  toast(`✓ Mua ${tubeQty} ống · +${birds} trái vào kho`, 'ok');
-
-  // Refresh kho cầu
+  toast(`✓ Mua ${tubeQty} ống · +${birds} trái · ${fmt(pricePerBird)}/trái`, 'ok');
   await loadShuttlecockInventory();
   renderShuttlecockCard();
 }
