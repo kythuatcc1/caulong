@@ -4488,7 +4488,7 @@ function getTypeLabel(t) {
 // Cache trạng thái kho cầu
 let scState = { remaining: 0, pricePerBird: 0, batches: [], totalBought: 0, totalUsed: 0 };
 
-// Tính toán trạng thái kho từ fund_transactions
+// Tính toán trạng thái kho từ fund_transactions + shuttlecock_items
 async function loadShuttlecockInventory() {
   if (!db || !me) return;
 
@@ -4510,8 +4510,31 @@ async function loadShuttlecockInventory() {
     .eq('type', 'shuttlecock_adjust')
     .order('created_at', { ascending: false });
 
+  // Lấy chi tiết giá từng trái từ bảng shuttlecock_items
+  const { data: scItems } = await db.from('shuttlecock_items')
+    .select('id, transaction_id, price, action_type, status, item_index, adjusted_by_name, note, created_at')
+    .order('created_at', { ascending: false });
+
+  // Map transaction_id -> items
+  const itemsByTx = {};
+  (scItems || []).forEach(item => {
+    if (!itemsByTx[item.transaction_id]) itemsByTx[item.transaction_id] = [];
+    itemsByTx[item.transaction_id].push(item);
+  });
+
+  // ── Tính pricePerBird ưu tiên từ shuttlecock_items ──
+  // Lấy giá TB của các trái có price > 0 trong shuttlecock_items (mới nhất)
+  let priceFromItems = 0;
+  const itemsWithPrice = (scItems || []).filter(i => (i.price || 0) > 0);
+  if (itemsWithPrice.length > 0) {
+    // Lấy giá của batch mới nhất (cùng transaction_id với item đầu tiên)
+    const latestTxId = itemsWithPrice[0].transaction_id;
+    const latestBatch = itemsWithPrice.filter(i => i.transaction_id === latestTxId);
+    priceFromItems = latestBatch.reduce((s, i) => s + i.price, 0) / latestBatch.length;
+  }
+
   let totalBought = 0, totalUsed = 0, totalCost = 0, totalAdj = 0;
-  let latestPricePerBird = 0;
+  let priceFromBuy = 0; // fallback từ lần mua ống
   const batches = [];
 
   (buyTxns || []).forEach(t => {
@@ -4521,7 +4544,7 @@ async function loadShuttlecockInventory() {
       const price = Math.abs(t.amount || 0);
       totalBought += count;
       totalCost   += price;
-      if (!latestPricePerBird && count > 0) latestPricePerBird = price / count;
+      if (!priceFromBuy && count > 0) priceFromBuy = price / count;
       batches.push({
         id: t.id, count, price, date: t.created_at,
         pricePerBird: count > 0 ? Math.round(price / count) : 0,
@@ -4542,10 +4565,15 @@ async function loadShuttlecockInventory() {
     try {
       const d = JSON.parse(t.description || '{}');
       totalAdj += (d.delta || 0);
+      const items = itemsByTx[t.id] || [];
       batches.push({
         id: t.id, count: d.delta, price: 0, date: t.created_at,
-        pricePerBird: 0, orderedByName: d.admin_name || null,
-        note: d.note || '', type: 'adjust'
+        pricePerBird: items.length > 0
+          ? Math.round(items.reduce((s, i) => s + (i.price || 0), 0) / items.length)
+          : 0,
+        orderedByName: d.admin_name || null,
+        note: d.note || '', type: 'adjust',
+        items
       });
     } catch(e) {}
   });
@@ -4553,14 +4581,18 @@ async function loadShuttlecockInventory() {
   // Sort batches by date desc
   batches.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+  // Ưu tiên: giá từ shuttlecock_items → fallback giá từ shuttlecock_buy
+  const finalPricePerBird = priceFromItems > 0 ? priceFromItems : priceFromBuy;
+
   scState = {
     remaining: Math.max(0, totalBought - totalUsed + totalAdj),
-    pricePerBird: latestPricePerBird,
+    pricePerBird: finalPricePerBird,
     batches,
     totalBought,
     totalUsed,
     totalAdj,
-    totalCost
+    totalCost,
+    scItems: scItems || []
   };
 
   return scState;
@@ -4658,11 +4690,84 @@ function openAdjustSCSheet() {
   document.getElementById('adj-sc-current').textContent = remaining;
   document.getElementById('adj-sc-new').value = remaining;
   document.getElementById('adj-sc-note').value = '';
+  // Reset per-item price UI
+  document.getElementById('adj-sc-delta-preview').style.display = 'none';
+  document.getElementById('adj-sc-prices-wrap').style.display = 'none';
+  document.getElementById('adj-sc-price-list').innerHTML = '';
   document.getElementById('adj-sc-sheet-bg').classList.add('show');
 }
 
+// Gọi khi thay đổi số trái mới → tính delta → render price inputs nếu thêm
+function onAdjSCNewChange() {
+  const newVal = parseInt(document.getElementById('adj-sc-new').value);
+  const { remaining } = scState;
+  const preview = document.getElementById('adj-sc-delta-preview');
+  const wrap    = document.getElementById('adj-sc-prices-wrap');
+  const list    = document.getElementById('adj-sc-price-list');
+
+  if (isNaN(newVal) || newVal < 0) {
+    preview.style.display = 'none';
+    wrap.style.display = 'none';
+    return;
+  }
+  const delta = newVal - remaining;
+
+  // Preview delta
+  if (delta !== 0) {
+    const sign = delta > 0 ? '+' : '';
+    preview.textContent = `Thay đổi: ${sign}${delta} trái (${remaining} → ${newVal})`;
+    preview.style.background = delta > 0 ? 'rgba(200,255,71,0.10)' : 'rgba(255,69,58,0.10)';
+    preview.style.color = delta > 0 ? 'var(--accent)' : 'var(--red)';
+    preview.style.border = delta > 0 ? '0.5px solid rgba(200,255,71,0.25)' : '0.5px solid rgba(255,69,58,0.25)';
+    preview.style.display = '';
+  } else {
+    preview.style.display = 'none';
+  }
+
+  // Price inputs chỉ khi thêm (delta > 0)
+  if (delta > 0) {
+    wrap.style.display = '';
+    const existing = list.querySelectorAll('input[data-price-idx]');
+    if (existing.length !== delta) {
+      list.innerHTML = '';
+      const lastPrice = scState.pricePerBird ? Math.round(scState.pricePerBird) : '';
+      for (let i = 0; i < delta; i++) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px';
+        row.innerHTML = `
+          <span style="min-width:24px;font-size:12px;color:var(--muted);font-weight:600">#${i+1}</span>
+          <input data-price-idx="${i}" type="number" min="0" placeholder="Giá (đ)"
+            oninput="updateAdjSCPriceTotal()"
+            value="${lastPrice}"
+            style="flex:1;background:rgba(255,255,255,.06);border:0.5px solid rgba(191,90,242,0.35);
+              border-radius:10px;padding:8px 12px;color:var(--purple);font-size:14px;
+              font-weight:700;font-family:'Be Vietnam Pro',sans-serif;outline:none">
+          <span style="font-size:12px;color:var(--muted)">đ</span>`;
+        list.appendChild(row);
+      }
+    }
+    updateAdjSCPriceTotal();
+  } else {
+    wrap.style.display = 'none';
+    list.innerHTML = '';
+  }
+}
+
+function updateAdjSCPriceTotal() {
+  const inputs = document.querySelectorAll('#adj-sc-price-list input[data-price-idx]');
+  let total = 0;
+  inputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
+  const el = document.getElementById('adj-sc-price-total');
+  if (total > 0) {
+    el.textContent = `Tổng giá trị thêm vào: ${fmt(total)}`;
+    el.style.color = 'var(--purple)';
+  } else {
+    el.textContent = '';
+  }
+}
+
 function closeAdjustSCSheet(e) {
-  if (!e || e.target === document.getElementById('adj-sc-sheet-bg'))
+  if (!e || !e.target || e.target === document.getElementById('adj-sc-sheet-bg'))
     document.getElementById('adj-sc-sheet-bg').classList.remove('show');
 }
 
@@ -4674,24 +4779,74 @@ async function confirmAdjustSC() {
   const delta = newVal - remaining;
   const note = document.getElementById('adj-sc-note').value.trim();
 
+  // Thu thập giá từng trái nếu thêm
+  let itemPrices = [];
+  if (delta > 0) {
+    const inputs = document.querySelectorAll('#adj-sc-price-list input[data-price-idx]');
+    inputs.forEach(inp => itemPrices.push(parseFloat(inp.value) || 0));
+  }
+
   load(true);
   const now = new Date().toISOString();
-  const { error } = await db.from('fund_transactions').insert({
+  const totalItemValue = itemPrices.reduce((s, p) => s + p, 0);
+
+  // 1) Insert fund_transactions (không truyền id — để DB tự sinh)
+  const { error: txErr } = await db.from('fund_transactions').insert({
     user_id:      me.id,
     amount:       0,
     type:         'shuttlecock_adjust',
-    description:  JSON.stringify({ delta, new_value: newVal, old_value: remaining, note, admin_name: me.name || '' }),
+    description:  JSON.stringify({
+      delta, new_value: newVal, old_value: remaining, note,
+      admin_name: me.name || '',
+      has_item_prices: itemPrices.length > 0,
+      total_item_value: totalItemValue
+    }),
     status:       'confirmed',
     confirmed_by: me.id,
     confirmed_at: now
   });
+  if (txErr) { load(false); toast(txErr.message, 'err'); return; }
+
+  // 2) Query lại để lấy id thật vừa insert
+  let realTxId = null;
+  if (delta > 0 && itemPrices.length > 0) {
+    const { data: latest } = await db.from('fund_transactions')
+      .select('id')
+      .eq('type', 'shuttlecock_adjust')
+      .eq('user_id', me.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    realTxId = latest?.[0]?.id || null;
+    console.log('[SC_TX] realTxId from query:', realTxId);
+
+    // 3) Insert từng trái vào shuttlecock_items
+    const rows = itemPrices.map((price, i) => ({
+      transaction_id:    realTxId,
+      price:             price,
+      action_type:       'add',
+      status:            'in_stock',
+      note:              note || null,
+      adjusted_by_name:  me.name || '',
+      item_index:        i + 1
+    }));
+    console.log('[SC_ITEMS] Rows to insert:', JSON.stringify(rows));
+
+    const { error: itemErr } = await db.from('shuttlecock_items').insert(rows);
+    if (itemErr) {
+      console.error('[SC_ITEMS] Error:', itemErr);
+      load(false);
+      toast(`⚠️ Lỗi lưu giá cầu: ${itemErr.message} (code: ${itemErr.code})`, 'err');
+      // Vẫn tiếp tục vì fund_transactions đã lưu thành công
+    } else {
+      console.log('[SC_ITEMS] Insert OK ✓', rows.length, 'rows');
+    }
+  }
 
   load(false);
-  if (error) { toast(error.message, 'err'); return; }
-
   closeAdjustSCSheet({});
   const sign = delta >= 0 ? '+' : '';
-  toast(`✓ Điều chỉnh kho: ${sign}${delta} trái → còn ${newVal} trái`, 'ok');
+  const priceInfo = itemPrices.length > 0 ? ` · ${fmt(totalItemValue)}` : '';
+  toast(`✓ Điều chỉnh kho: ${sign}${delta} trái → còn ${newVal} trái${priceInfo}`, 'ok');
 
   await loadShuttlecockInventory();
   renderShuttlecockCard();
@@ -6127,7 +6282,25 @@ if (document.readyState === 'loading') {
     <div class="fg">
       <label class="fl">Số trái sau điều chỉnh</label>
       <input class="fi" id="adj-sc-new" type="number" min="0" placeholder="0"
+        oninput="onAdjSCNewChange()"
         style="font-size:22px;font-weight:800;color:var(--purple);text-align:center">
+    </div>
+
+    <!-- Preview delta -->
+    <div id="adj-sc-delta-preview" style="display:none;margin-bottom:12px;padding:8px 12px;
+      border-radius:10px;font-size:13px;font-weight:700;text-align:center"></div>
+
+    <!-- Per-item price inputs (shown when delta > 0) -->
+    <div id="adj-sc-prices-wrap" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+        color:var(--purple);margin-bottom:8px">
+        <i class="ph-bold ph-tag"></i> Giá từng trái cầu thêm vào
+        <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">
+          (lưu riêng vào Supabase để chỉnh sau)
+        </span>
+      </div>
+      <div id="adj-sc-price-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div id="adj-sc-price-total" style="margin-top:8px;font-size:12px;color:var(--muted);text-align:right"></div>
     </div>
 
     <div class="fg">
