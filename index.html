@@ -3419,8 +3419,8 @@ async function doClose() {
     .select('*, expense_assignments(user_id, amount), guest_expense_assignments(guest_id, amount)')
     .eq('session_id', session.id);
 
-  // Đếm tổng số tài khoản câu lạc bộ (để tính pool A = 15k × tất cả thành viên CLB)
-  const { count: clubMemberCount } = await db.from('profiles').select('id', { count: 'exact', head: true });
+  // Đếm tổng số tài khoản câu lạc bộ (để tính pool A = 15k × thành viên CLB, không tính banned)
+  const { count: clubMemberCount } = await db.from('profiles').select('id', { count: 'exact', head: true }).neq('is_banned', true);
   const totalClubMembers = clubMemberCount || 1;
 
   // ── Tính tiền từng người (logic ưu đãi bình chọn) ─────────────
@@ -3580,7 +3580,7 @@ async function doClose() {
 
 // Tự động trừ quỹ sau khi khóa buổi
 // Luồng đúng:
-//   Bước 1 — Trừ 15k từ TẤT CẢ thành viên CLB (tạo pool A)
+//   Bước 1 — Trừ 15k từ TẤT CẢ thành viên CLB không bị banned (tạo pool A)
 //   Bước 2 — Với mỗi người tham gia: điều chỉnh thêm (B-C)
 //              > 0 → trừ thêm từ quỹ
 //              < 0 → hoàn lại vào quỹ (ưu đãi > phí bình quân)
@@ -3589,14 +3589,14 @@ async function autoDeductFundForSession(picked, session) {
   const now = new Date().toISOString();
   const POOL_CONTRIBUTION = 15000; // 15k mỗi thành viên CLB
 
-  // ── Bước 1: Lấy TẤT CẢ thành viên CLB và trừ 15k ──
-  const { data: allProfiles } = await db.from('profiles').select('id, name, fund_balance');
+  // ── Bước 1: Lấy thành viên CLB không bị banned và trừ 15k ──
+  const { data: allProfiles } = await db.from('profiles').select('id, name, fund_balance').neq('is_banned', true);
   if (!allProfiles?.length) return { deducted: 0, newBalForMe: null };
 
   const profileMap = {};
   allProfiles.forEach(p => { profileMap[p.id] = { name: p.name || '?', bal: p.fund_balance || 0 }; });
 
-  // Trừ 15k từ tất cả thành viên CLB (kể cả người không tham gia buổi)
+  // Trừ 15k từ thành viên CLB không bị banned (kể cả người không tham gia buổi)
   for (const prof of allProfiles) {
     const newBal = prof.fund_balance - POOL_CONTRIBUTION;
     await db.from('profiles').update({ fund_balance: newBal }).eq('id', prof.id);
