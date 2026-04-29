@@ -2750,7 +2750,7 @@ function openAddMemberSheet() {
 }
 
 function closeAddMemberSheet(e) {
-  if (!e || e.target === document.getElementById('add-member-sheet-bg'))
+  if (!e || !e.target || e.target === document.getElementById('add-member-sheet-bg'))
     document.getElementById('add-member-sheet-bg').classList.remove('show');
 }
 
@@ -3166,7 +3166,7 @@ function openExpenseSheet() {
 }
 
 function closeExpenseSheet(e) {
-  if (!e || e.target === document.getElementById('exp-sheet-bg'))
+  if (!e || !e.target || e.target === document.getElementById('exp-sheet-bg'))
     document.getElementById('exp-sheet-bg').classList.remove('show');
 }
 
@@ -4021,7 +4021,7 @@ function openAssignGuestSheet(gpid, gname, amount) {
 }
 
 function closeAssignGuestSheet(e) {
-  if (!e || e.target === document.getElementById('assign-guest-sheet-bg')) {
+  if (!e || !e.target || e.target === document.getElementById('assign-guest-sheet-bg')) {
     document.getElementById('assign-guest-sheet-bg').classList.remove('show');
     _assignGuestId = null;
   }
@@ -4204,7 +4204,7 @@ async function selfMarkPaid(pid, currentlyPaid) {
 }
 
 function closePayMethodSheet(e) {
-  if (!e || e.target === document.getElementById('pay-method-sheet-bg'))
+  if (!e || !e.target || e.target === document.getElementById('pay-method-sheet-bg'))
     document.getElementById('pay-method-sheet-bg').classList.remove('show');
 }
 
@@ -4261,7 +4261,7 @@ function openTransferSheet(pid, amount) {
 }
 
 function closeTransferSheet(e) {
-  if (!e || e.target === document.getElementById('transfer-confirm-bg'))
+  if (!e || !e.target || e.target === document.getElementById('transfer-confirm-bg'))
     document.getElementById('transfer-confirm-bg').classList.remove('show');
 }
 
@@ -4856,7 +4856,7 @@ function openBuyTubeSheet() {
 }
 
 function closeBuyTubeSheet(e) {
-  if (!e || e.target === document.getElementById('buy-tube-sheet-bg'))
+  if (!e || !e.target || e.target === document.getElementById('buy-tube-sheet-bg'))
     document.getElementById('buy-tube-sheet-bg').classList.remove('show');
 }
 
@@ -4972,7 +4972,7 @@ function renderUseSCMemberList() {
 }
 
 function closeUseShuttlecockSheet(e) {
-  if (!e || e.target === document.getElementById('use-sc-sheet-bg'))
+  if (!e || !e.target || e.target === document.getElementById('use-sc-sheet-bg'))
     document.getElementById('use-sc-sheet-bg').classList.remove('show');
 }
 
