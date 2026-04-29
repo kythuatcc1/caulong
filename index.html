@@ -3436,7 +3436,7 @@ async function doClose() {
   //  Chi phí cuối = base − C
   //
   //  LƯU Ý: Phí sân chia đều. Chi phí phụ (nước, cầu...) chỉ chia cho người được chọn.
-  //  Khách vãng lai: chỉ nhận phần chia đều phần dư (không có ưu đãi vị trí)
+  //  Khách vãng lai: không đóng quỹ, không hưởng ưu đãi pool — chỉ đóng phần phí sân + chi phí phụ bình thường
   // ─────────────────────────────────────────────────────────────
   const DISCOUNT_RATES = discountSettings.rates.map(r => r / 100);
   const FUND_PER_PERSON = discountSettings.fundPerPerson;
@@ -3493,8 +3493,8 @@ async function doClose() {
   // Phần dư của A sau khi trừ hết C₀ của thành viên (nếu < 8 người thì còn dư)
   const usedA    = memberRates.reduce((s, r) => s + r.C0, 0);
   const remainA  = Math.max(0, A - usedA);
-  // Chia đều phần dư cho TẤT CẢ người tham gia (thành viên + khách)
-  const extraEach = totalPpl > 0 ? remainA / totalPpl : 0;
+  // Chia đều phần dư chỉ cho THÀNH VIÊN CLB (khách vãng lai không đóng quỹ, không được hưởng)
+  const extraEach = picked.length > 0 ? remainA / picked.length : 0;
 
   // Tính member payments
   const memberPayData = memberRates.map(({ m, position, rate, C0 }) => {
@@ -3510,24 +3510,21 @@ async function doClose() {
       { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareR },
       ...(expShareR > 0 ? [{ name: `Chi phí phụ`, amount: expShareR }] : []),
       ...(C0r > 0 ? [{ name: `Ưu đãi vị trí ${position} (${Math.round(rate * 100)}% × pool ${fmt(A)})`, amount: -C0r }] : []),
-      ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${totalPpl} người`, amount: -Exr }] : [])
+      ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${picked.length} thành viên`, amount: -Exr }] : [])
     ];
     return { session_id: session.id, user_id: m.user_id, amount: finalAmount, breakdown, is_paid: false };
   });
 
-  // Tính guest payments — chỉ nhận phần chia đều phần dư (không có ưu đãi vị trí)
+  // Tính guest payments — vãng lai không đóng quỹ, không hưởng ưu đãi pool, chỉ đóng phần sân + chi phí phụ
   const guestPayData = guests.map(g => {
-    const C            = extraEach;
     const expShare     = guestExpMap[g.id] || 0;
     const baseAmount   = courtShare + expShare;
-    const finalAmount  = Math.round(baseAmount - C);   // có thể âm → hoàn lại vào quỹ
-    const Exr          = Math.round(extraEach);
+    const finalAmount  = Math.round(baseAmount);       // không trừ ưu đãi
     const courtShareR  = Math.round(courtShare);
     const expShareR    = Math.round(expShare);
     const breakdown = [
       { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareR },
-      ...(expShareR > 0 ? [{ name: `Chi phí phụ`, amount: expShareR }] : []),
-      ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${totalPpl} người`, amount: -Exr }] : [])
+      ...(expShareR > 0 ? [{ name: `Chi phí phụ`, amount: expShareR }] : [])
     ];
     return { session_id: session.id, guest_id: g.id, amount: finalAmount, breakdown, is_paid: false };
   });
