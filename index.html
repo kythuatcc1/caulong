@@ -696,6 +696,101 @@ body::before {
 }
 .pending-settle-label { font-size:11px; color:#ffd60a; display:flex; align-items:center; gap:4px; }
 .pending-settle-amt   { font-size:12px; font-weight:700; color:#ffd60a; }
+
+/* ── NOTIFICATION SYSTEM ── */
+.notif-bell-btn {
+  position:relative; padding:7px 10px; background:none;
+  border:0.5px solid var(--glass-border); border-radius:var(--r-pill);
+  color:var(--text); cursor:pointer; display:flex; align-items:center;
+  justify-content:center; font-size:18px; transition:all .18s;
+  backdrop-filter:blur(12px);
+}
+.notif-bell-btn:active { transform:scale(.92); }
+.notif-badge {
+  position:absolute; top:-5px; right:-5px;
+  background:var(--red); color:#fff;
+  font-size:9px; font-weight:800; min-width:17px; height:17px;
+  border-radius:9px; display:flex; align-items:center; justify-content:center;
+  padding:0 4px; border:2px solid var(--bg); line-height:1;
+  animation: pulse-badge .6s ease;
+}
+@keyframes pulse-badge {
+  0%   { transform:scale(0); opacity:0; }
+  60%  { transform:scale(1.3); }
+  100% { transform:scale(1); opacity:1; }
+}
+/* Notification drawer */
+.notif-overlay {
+  position:fixed; inset:0; z-index:3000;
+  background:rgba(0,0,0,.55); backdrop-filter:blur(4px);
+  opacity:0; pointer-events:none; transition:opacity .25s;
+}
+.notif-overlay.open { opacity:1; pointer-events:all; }
+.notif-drawer {
+  position:fixed; top:0; right:0; bottom:0; z-index:3001;
+  width:min(360px,100vw); background:var(--bg);
+  border-left:0.5px solid var(--glass-border);
+  display:flex; flex-direction:column;
+  transform:translateX(100%); transition:transform .3s cubic-bezier(.4,0,.2,1);
+  box-shadow:-8px 0 40px rgba(0,0,0,.5);
+}
+.notif-drawer.open { transform:translateX(0); }
+.notif-drawer-hdr {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 18px 14px; border-bottom:0.5px solid var(--glass-border);
+  flex-shrink:0;
+}
+.notif-drawer-title { font-size:17px; font-weight:800; }
+.notif-close-btn {
+  padding:6px 10px; background:none; border:0.5px solid var(--glass-border);
+  border-radius:10px; color:var(--muted); cursor:pointer; font-size:14px;
+}
+.notif-list { flex:1; overflow-y:auto; padding:10px 14px; }
+.notif-item {
+  display:flex; align-items:flex-start; gap:10px;
+  padding:12px 14px; border-radius:14px; margin-bottom:8px;
+  background:var(--glass-1); border:0.5px solid var(--glass-border);
+  transition:all .15s; position:relative;
+}
+.notif-item.unread {
+  border-color:rgba(200,255,71,0.25);
+  background:rgba(200,255,71,0.04);
+}
+.notif-item.type-money   { border-left:3px solid #bf9eff; }
+.notif-item.type-session { border-left:3px solid var(--accent); }
+.notif-item.type-payment { border-left:3px solid var(--green); }
+.notif-item.type-alert   { border-left:3px solid var(--yellow); }
+.notif-icon {
+  width:36px; height:36px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:17px;
+}
+.notif-icon-session { background:rgba(200,255,71,.14); }
+.notif-icon-money   { background:rgba(191,90,242,.14); }
+.notif-icon-payment { background:rgba(48,209,88,.14); }
+.notif-icon-alert   { background:rgba(255,214,10,.14); }
+.notif-body { flex:1; min-width:0; }
+.notif-title-text { font-size:13px; font-weight:700; margin-bottom:2px; line-height:1.35; }
+.notif-sub  { font-size:11px; color:var(--muted); line-height:1.4; }
+.notif-time { font-size:10px; color:var(--text3); margin-top:4px; }
+.notif-dot  {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--accent); flex-shrink:0; margin-top:5px;
+}
+.notif-empty {
+  text-align:center; padding:48px 20px;
+  color:var(--muted); font-size:13px;
+}
+.notif-empty-icon { font-size:40px; margin-bottom:12px; opacity:.4; }
+.notif-footer {
+  padding:12px 16px; border-top:0.5px solid var(--glass-border); flex-shrink:0;
+  display:flex; gap:8px;
+}
+.notif-footer button {
+  flex:1; padding:10px; border-radius:12px; font-size:12px; font-weight:700;
+  cursor:pointer; font-family:'Be Vietnam Pro',sans-serif;
+}
+.notif-btn-clear { background:rgba(239,68,68,.08); border:0.5px solid rgba(239,68,68,.25); color:var(--red); }
+.notif-btn-markall { background:rgba(200,255,71,.08); border:0.5px solid rgba(200,255,71,.22); color:var(--accent); }
 </style>
 </head>
 <body>
@@ -875,7 +970,11 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
       </div>
     </div>
     <button id="home-bg-btn" onclick="triggerBgPicker()" class="btn-ghost" style="display:none;padding:7px 10px;font-size:18px;margin-right:4px" title="Đổi hình nền"><i class="ph-bold ph-image"></i></button>
-    <button class="btn-ghost" onclick="doExit()" style="padding:7px 12px;font-size:12px">Đổi SĐT</button>
+    <button class="notif-bell-btn" id="notif-bell" onclick="openNotifDrawer()" title="Thông báo">
+      <i class="ph-bold ph-bell"></i>
+      <span class="notif-badge" id="notif-badge" style="display:none">0</span>
+    </button>
+    <button class="btn-ghost" onclick="doExit()" style="padding:7px 12px;font-size:12px;margin-left:4px">Đổi SĐT</button>
   </div>
   <div class="content">
     <!-- Tabs: Đang mở / Của tôi -->
@@ -1613,6 +1712,7 @@ function init() {
   showAdminTabIfNeeded();
   loadHome();
   startAllRealtime();
+  initNotifications();
 
   // ── Verify + sync profile ở background ──
   db.from('profiles').select('*').eq('id', parsed.id).single()
@@ -1852,6 +1952,7 @@ async function doEnter() {
   load(false);
   toast(`Chào mừng ${me.name}!`,'ok');
   startAllRealtime();
+  initNotifications();
   goPage('pg-home');
   refreshTotalFundDisplay();
   setTimeout(checkAndShowLowFundAlert, 800);
@@ -1862,6 +1963,260 @@ function doExit() {
   sessionStorage.removeItem('cvUser');
   goPage('pg-auth');
 }
+
+// ═══════════════════════════════════════════════════════
+// NOTIFICATION SYSTEM
+// ═══════════════════════════════════════════════════════
+const NOTIF_KEY = 'cvNotifs_v2';
+let _notifs = [];
+let _notifSeenSessionIds = new Set();   // track session IDs đã thông báo
+let _notifSeenTxnIds = new Set();       // track fund_transaction IDs đã thông báo
+
+function _loadNotifs() {
+  try {
+    const raw = localStorage.getItem(NOTIF_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      _notifs = parsed.list || [];
+      _notifSeenSessionIds = new Set(parsed.seenSessions || []);
+      _notifSeenTxnIds     = new Set(parsed.seenTxns || []);
+    }
+  } catch(e) { _notifs = []; }
+}
+
+function _saveNotifs() {
+  try {
+    localStorage.setItem(NOTIF_KEY, JSON.stringify({
+      list: _notifs.slice(0, 60),  // giữ tối đa 60 thông báo
+      seenSessions: [..._notifSeenSessionIds].slice(-200),
+      seenTxns:     [..._notifSeenTxnIds].slice(-200)
+    }));
+  } catch(e) {}
+}
+
+// ── Xin quyền thông báo hệ thống ──
+async function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+  _updatePermStatus();
+}
+
+function _updatePermStatus() {
+  const el = document.getElementById('notif-perm-status');
+  if (!el) return;
+  if (!('Notification' in window)) {
+    el.textContent = '⚠️ Thiết bị không hỗ trợ thông báo';
+  } else if (Notification.permission === 'granted') {
+    el.textContent = '✅ Đã bật thông báo hệ thống';
+    el.style.color = 'var(--green)';
+  } else if (Notification.permission === 'denied') {
+    el.textContent = '🔕 Thông báo bị chặn — bật lại trong cài đặt app';
+    el.style.color = 'var(--red)';
+  } else {
+    el.textContent = '🔔 Chưa cấp quyền thông báo';
+    el.style.color = 'var(--yellow)';
+  }
+}
+
+// ── Gửi thông báo ──
+function pushNotif({ title, body, type = 'session', id = null, actionUrl = null }) {
+  const notif = {
+    id:   id || Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    title, body, type,
+    actionUrl,
+    time: new Date().toISOString(),
+    read: false
+  };
+  _notifs.unshift(notif);
+  _saveNotifs();
+  _updateBadge();
+
+  // OS notification (khi app ở nền hoặc foreground)
+  if ('Notification' in window && Notification.permission === 'granted') {
+    const iconMap = {
+      session: '🏸', money: '💰', payment: '✅', alert: '⚠️'
+    };
+    try {
+      const n = new Notification(iconMap[type] + ' ' + title, {
+        body,
+        icon:  'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><circle cx="24" cy="36" r="7" fill="%23c8ff47"/><line x1="24" y1="29" x2="24" y2="10" stroke="%23c8ff47" stroke-width="2.5" stroke-linecap="round"/></svg>',
+        badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="%23c8ff47"/></svg>',
+        tag:   notif.id,
+        vibrate: [120, 60, 120],
+        silent: false
+      });
+      n.onclick = () => {
+        window.focus();
+        if (actionUrl) { /* future: deep link */ }
+        n.close();
+      };
+    } catch(e) {}
+  }
+
+  // In-app toast nếu drawer đang đóng
+  const drawer = document.getElementById('notif-drawer');
+  if (!drawer?.classList.contains('open')) {
+    toast(title + (body ? ' — ' + body : ''), type === 'alert' ? 'err' : 'ok');
+  } else {
+    renderNotifList();
+  }
+}
+
+function _updateBadge() {
+  const unread = _notifs.filter(n => !n.read).length;
+  const badge  = document.getElementById('notif-badge');
+  if (!badge) return;
+  if (unread > 0) {
+    badge.textContent = unread > 99 ? '99+' : unread;
+    badge.style.display = 'flex';
+    // Animate lại
+    badge.style.animation = 'none';
+    badge.offsetHeight; // reflow
+    badge.style.animation = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── Drawer ──
+function openNotifDrawer() {
+  _loadNotifs();
+  _updatePermStatus();
+  renderNotifList();
+  document.getElementById('notif-overlay').classList.add('open');
+  document.getElementById('notif-drawer').classList.add('open');
+}
+
+function closeNotifDrawer() {
+  document.getElementById('notif-overlay').classList.remove('open');
+  document.getElementById('notif-drawer').classList.remove('open');
+}
+
+function renderNotifList() {
+  const el = document.getElementById('notif-list');
+  if (!el) return;
+  if (!_notifs.length) {
+    el.innerHTML = `<div class="notif-empty">
+      <div class="notif-empty-icon"><i class="ph-bold ph-bell-slash"></i></div>
+      <div>Chưa có thông báo nào</div>
+      <div style="font-size:11px;margin-top:6px;color:var(--text3)">Thông báo về trận mới và biến động quỹ sẽ hiển thị ở đây</div>
+    </div>`;
+    return;
+  }
+  const typeIcon = { session:'🏸', money:'💰', payment:'✅', alert:'⚠️' };
+  const typeClass = { session:'notif-icon-session', money:'notif-icon-money', payment:'notif-icon-payment', alert:'notif-icon-alert' };
+  el.innerHTML = _notifs.map(n => {
+    const t = new Date(n.time);
+    const timeStr = t.toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+    return `<div class="notif-item type-${n.type} ${n.read?'':'unread'}" onclick="notifItemClick('${n.id}')">
+      <div class="notif-icon ${typeClass[n.type]||'notif-icon-session'}">${typeIcon[n.type]||'🔔'}</div>
+      <div class="notif-body">
+        <div class="notif-title-text">${n.title}</div>
+        ${n.body ? `<div class="notif-sub">${n.body}</div>` : ''}
+        <div class="notif-time">${timeStr}</div>
+      </div>
+      ${!n.read ? '<div class="notif-dot"></div>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function notifItemClick(id) {
+  const n = _notifs.find(x => x.id === id);
+  if (n) { n.read = true; _saveNotifs(); _updateBadge(); renderNotifList(); }
+}
+
+function markAllRead() {
+  _notifs.forEach(n => n.read = true);
+  _saveNotifs(); _updateBadge(); renderNotifList();
+}
+
+function clearAllNotifs() {
+  if (!confirm('Xoá tất cả thông báo?')) return;
+  _notifs = [];
+  _saveNotifs(); _updateBadge(); renderNotifList();
+}
+
+// ── Notification triggers (gọi từ realtime handlers) ──
+function notifyNewSession(session) {
+  if (!session?.id) return;
+  if (_notifSeenSessionIds.has(session.id)) return;
+  _notifSeenSessionIds.add(session.id);
+  _saveNotifs();
+
+  let dateStr = '';
+  if (session.scheduled_at) {
+    const d = new Date(session.scheduled_at);
+    const days = ['CN','T2','T3','T4','T5','T6','T7'];
+    dateStr = days[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth()+1)
+      + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  }
+  const loc = session.location
+    ? (typeof session.location === 'string'
+        ? (session.location.startsWith('{') ? JSON.parse(session.location)?.name || session.location : session.location)
+        : session.location?.name || '')
+    : '';
+  const bodyParts = [];
+  if (dateStr) bodyParts.push(dateStr);
+  if (loc)     bodyParts.push(loc);
+  if (session.court_fee) bodyParts.push('Phí: ' + fmt(session.court_fee));
+
+  pushNotif({
+    title: '🏸 Trận mới: ' + (session.title || 'Buổi cầu lông'),
+    body:  bodyParts.join(' · '),
+    type:  'session',
+    id:    'sess_' + session.id
+  });
+}
+
+function notifyFundChange(txn) {
+  if (!txn?.id) return;
+  if (_notifSeenTxnIds.has(txn.id)) return;
+  // Chỉ thông báo nếu liên quan đến user hiện tại
+  if (txn.user_id && txn.user_id !== me?.id) return;
+  _notifSeenTxnIds.add(txn.id);
+  _saveNotifs();
+
+  const amt = txn.amount || 0;
+  const sign = amt >= 0 ? '+' : '';
+  const typeLabel = {
+    deposit:          'Nạp tiền vào quỹ',
+    withdraw:         'Rút tiền từ quỹ',
+    deduct:           'Trừ tiền buổi chơi',
+    settle:           'Quyết toán buổi',
+    fund_payment:     'Thanh toán từ quỹ',
+    shuttlecock_buy:  'Mua cầu lông',
+    shuttlecock_use:  'Dùng cầu lông',
+    refund:           'Hoàn tiền',
+    adjustment:       'Điều chỉnh quỹ'
+  }[txn.type] || 'Biến động quỹ';
+
+  const noteStr = txn.note ? ' — ' + txn.note : '';
+  pushNotif({
+    title: '💰 ' + typeLabel + ': ' + sign + fmt(amt),
+    body:  'Quỹ của bạn' + noteStr,
+    type:  'money',
+    id:    'txn_' + txn.id
+  });
+}
+
+function notifyPaymentConfirmed(sessionTitle) {
+  pushNotif({
+    title: '✅ Thanh toán được xác nhận',
+    body:  sessionTitle ? 'Buổi: ' + sessionTitle : 'Admin đã xác nhận khoản thanh toán của bạn',
+    type:  'payment',
+    id:    'pay_' + Date.now()
+  });
+}
+
+// Init notifications (gọi sau login)
+function initNotifications() {
+  _loadNotifs();
+  _updateBadge();
+  requestNotifPermission();
+}
+
 
 // ═══════════════════════════════════════
 // REALTIME — tất cả trang
@@ -1942,8 +2297,12 @@ function startAllRealtime() {
   // ── HOME: sessions thay đổi ──
   if (homeCh) db.removeChannel(homeCh);
   homeCh = db.channel('rt-home')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, (pl) => {
       if (isActive('pg-home')) loadHome();
+      // 🔔 Thông báo trận mới được tạo
+      if (pl?.eventType === 'INSERT' && pl?.new) {
+        try { notifyNewSession(pl.new); } catch(e) {}
+      }
     })
     .subscribe();
 
@@ -1958,15 +2317,23 @@ function startAllRealtime() {
         renderShuttlecockCard();
       }
       if (isActive('pg-fund')) loadFundPage();
+      // 🔔 Thông báo biến động tiền
+      if (pl?.eventType === 'INSERT' && pl?.new) {
+        try { notifyFundChange(pl.new); } catch(e) {}
+      }
     })
     .subscribe();
 
   // ── ADMIN: fund_transactions & profiles ──
   if (adminCh) db.removeChannel(adminCh);
   adminCh = db.channel('rt-admin')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async () => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_transactions' }, async (pl) => {
       await refreshTotalNow();
       if (isActive('pg-admin')) loadAdminPage();
+      // 🔔 Thông báo biến động tiền (backup nếu fundCh miss)
+      if (pl?.eventType === 'INSERT' && pl?.new) {
+        try { notifyFundChange(pl.new); } catch(e) {}
+      }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, async () => {
       await refreshTotalNow();
@@ -1985,8 +2352,18 @@ function startPaymentRealtime(sessionId) {
   if (paymentCh) db.removeChannel(paymentCh);
   paymentCh = db.channel('rt-payment-' + sessionId)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'payments',
-        filter: `session_id=eq.${sessionId}` }, () => {
+        filter: `session_id=eq.${sessionId}` }, (pl) => {
       if (isActive('pg-payment')) openPayment(false, false);
+      // 🔔 Thông báo khi thanh toán được xác nhận (dành cho người dùng hiện tại)
+      if (pl?.eventType === 'UPDATE' && pl?.new) {
+        const p = pl.new;
+        if (p.user_id === me?.id && p.is_paid && !pl?.old?.is_paid) {
+          try {
+            const sesTitle = curSession?.session?.title || '';
+            notifyPaymentConfirmed(sesTitle);
+          } catch(e) {}
+        }
+      }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'guest_payments',
         filter: `session_id=eq.${sessionId}` }, () => {
@@ -6455,6 +6832,24 @@ if (document.readyState === 'loading') {
     <button class="btn" id="use-sc-confirm-btn" onclick="confirmUseShuttlecock()">
       <i class="ph-bold ph-check"></i> Thêm vào chi phí buổi
     </button>
+  </div>
+</div>
+<!-- ══════════════════════════════
+     NOTIFICATION DRAWER
+══════════════════════════════ -->
+<div class="notif-overlay" id="notif-overlay" onclick="closeNotifDrawer()"></div>
+<div class="notif-drawer" id="notif-drawer">
+  <div class="notif-drawer-hdr">
+    <div>
+      <div class="notif-drawer-title"><i class="ph-bold ph-bell" style="margin-right:6px;color:var(--accent)"></i>Thông báo</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px" id="notif-perm-status"></div>
+    </div>
+    <button class="notif-close-btn" onclick="closeNotifDrawer()">✕</button>
+  </div>
+  <div class="notif-list" id="notif-list"></div>
+  <div class="notif-footer">
+    <button class="notif-btn-markall" onclick="markAllRead()"><i class="ph-bold ph-checks"></i> Đã đọc tất cả</button>
+    <button class="notif-btn-clear" onclick="clearAllNotifs()"><i class="ph-bold ph-trash"></i> Xoá tất cả</button>
   </div>
 </div>
 
