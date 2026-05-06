@@ -653,16 +653,17 @@ body::before {
 .dash-legend { display: flex; flex-direction: column; gap: 3px; }
 .dash-legend-row { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text2); white-space: nowrap; }
 .dash-legend-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-/* Cột phải: stats */
-.dash-stats { display: flex; gap: 6px; flex: 1; min-width: 0; flex-wrap: nowrap; }
+/* Cột phải: stats dạng list */
+.dash-stats { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; }
 .dash-stat {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  display: flex; align-items: center; gap: 8px;
   background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1);
-  border-radius: 10px; padding: 7px 10px; flex: 1; min-width: 0; overflow: hidden;
+  border-radius: 9px; padding: 6px 10px;
 }
-.dash-stat-icon { font-size: 14px; margin-bottom: 2px; }
-.dash-stat-val { font-size: 13px; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.dash-stat-lbl { font-size: 9px; color: var(--text3); font-weight: 500; white-space: nowrap; }
+.dash-stat-icon { font-size: 14px; flex-shrink: 0; }
+.dash-stat-text { display: flex; flex-direction: column; gap: 0px; min-width: 0; flex: 1; }
+.dash-stat-val { font-size: 13px; font-weight: 800; line-height: 1.3; min-width: 0; word-break: break-all; }
+.dash-stat-lbl { font-size: 9px; color: var(--text3); font-weight: 500; }
 
 /* ── Fee History Widget ── */
 .fee-history-widget {
@@ -1237,25 +1238,29 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
           <div class="dash-legend-row"><div class="dash-legend-dot" style="background:var(--accent3)"></div>Nước 30%</div>
         </div>
       </div>
-      <!-- Cột phải: Số liệu nổi bật -->
+      <!-- Cột phải: Số liệu dạng list -->
       <div class="dash-stats">
         <div class="dash-stat">
           <i class="ph-bold ph-bank dash-stat-icon" style="color:#bf9eff"></i>
-          <span class="dash-stat-val" id="home-balance" style="color:#bf9eff">—</span>
-          <span class="dash-stat-lbl">Quỹ tôi</span>
+          <div class="dash-stat-text">
+            <span class="dash-stat-lbl">Quỹ tôi</span>
+            <span class="dash-stat-val" id="home-balance" style="color:#bf9eff">—</span>
+          </div>
         </div>
         <div class="dash-stat">
           <i class="ph-bold ph-coins dash-stat-icon" style="color:var(--accent2)"></i>
-          <span class="dash-stat-val" id="home-total-fund" style="color:var(--accent2)">—</span>
-          <span class="dash-stat-lbl">Tổng quỹ</span>
-        </div>
-        <span id="home-sc-spend" style="display:none;flex:1">
-          <div class="dash-stat" style="width:100%">
-            <i class="ph-bold ph-package dash-stat-icon" style="color:var(--accent3)"></i>
-            <span class="dash-stat-val" id="home-sc-unallocated-val" style="color:var(--accent3)">—</span>
-            <span class="dash-stat-lbl">Tồn kho</span>
+          <div class="dash-stat-text">
+            <span class="dash-stat-lbl">Tổng quỹ</span>
+            <span class="dash-stat-val" id="home-total-fund" style="color:var(--accent2)">—</span>
           </div>
-        </span>
+        </div>
+        <div class="dash-stat" id="home-sc-spend" style="display:none">
+          <i class="ph-bold ph-package dash-stat-icon" style="color:var(--accent3)"></i>
+          <div class="dash-stat-text">
+            <span class="dash-stat-lbl">Tồn kho</span>
+            <span class="dash-stat-val" id="home-sc-unallocated-val" style="color:var(--accent3)">—</span>
+          </div>
+        </div>
       </div>
     </div>
     <!-- Tabs: Đang mở / Của tôi -->
