@@ -2554,7 +2554,7 @@ async function refreshAllFund() {
         const el = document.getElementById(id);
         if (el) { el.textContent = text; el.style.color = color; }
       });
-      // Cập nhật hiển thị tồn kho cầu (scState đã load ở trên)
+      // scState đã load ở trên — chỉ cần gọi updateScFundDisplay
       updateScFundDisplay();
     }
   }
@@ -3781,8 +3781,8 @@ function renderExpSummary(expenses, members, session) {
       <div class="av" style="background:${ac(m.user_id)};width:32px;height:32px;font-size:11px">${initials(m.profiles?.name||'?')}</div>
       <div style="flex:1;font-size:13px;font-weight:600">${m.profiles?.name||'?'}</div>
       <div style="text-align:right">
-        <div style="font-size:14px;font-weight:700;color:var(--accent2)">${fmt(Math.ceil(total))}</div>
-        ${extra > 0 ? `<div style="font-size:10px;color:var(--muted)">${fmt(Math.ceil(courtShare))} + ${fmt(Math.ceil(extra))}</div>` : ''}
+        <div style="font-size:14px;font-weight:700;color:var(--accent2)">${fmt(Math.round(total))}</div>
+        ${extra > 0 ? `<div style="font-size:10px;color:var(--muted)">${fmt(Math.round(courtShare))} + ${fmt(Math.round(extra))}</div>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -3795,8 +3795,8 @@ function renderExpSummary(expenses, members, session) {
         display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--accent3);flex-shrink:0">${initials(g.name)}</div>
       <div style="flex:1;font-size:13px;font-weight:600">${g.name} <span class="guest-badge" style="font-size:8px">Khách</span></div>
       <div style="text-align:right">
-        <div style="font-size:14px;font-weight:700;color:var(--accent3)">${fmt(Math.ceil(total))}</div>
-        ${extra > 0 ? `<div style="font-size:10px;color:var(--muted)">${fmt(Math.ceil(courtShare))} + ${fmt(Math.ceil(extra))}</div>` : ''}
+        <div style="font-size:14px;font-weight:700;color:var(--accent3)">${fmt(Math.round(total))}</div>
+        ${extra > 0 ? `<div style="font-size:10px;color:var(--muted)">${fmt(Math.round(courtShare))} + ${fmt(Math.round(extra))}</div>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -4170,13 +4170,16 @@ async function doClose() {
     const C            = C0 + extraEach;               // ưu đãi cuối = vị trí + phần dư bình quân
     const expShare     = memberExpMap[m.user_id] || 0; // chi phí phụ riêng của người này
     const baseAmount   = courtShare + expShare;         // phí sân (chia đều) + chi phí phụ của họ
-    const finalAmount  = Math.round(baseAmount - C);   // có thể âm → hoàn lại vào quỹ
-    const C0r          = Math.round(C0);
-    const Exr          = Math.round(extraEach);
-    const courtShareR  = Math.round(courtShare);
-    const expShareR    = Math.round(expShare);
+    const finalAmount  = Math.round(baseAmount - C);   // làm tròn MỘT LẦN duy nhất ở kết quả cuối — tránh tích luỹ sai số
+    // Breakdown: làm tròn từng mục ưu đãi/phụ riêng, sau đó tính courtShare ngược lại từ finalAmount
+    // đảm bảo Σ(breakdown) = finalAmount chính xác
+    const C0r       = Math.round(C0);
+    const Exr       = Math.round(extraEach);
+    const expShareR = Math.round(expShare);
+    // courtShareAdj = finalAmount + C0r + Exr − expShareR → tổng breakdown = finalAmount
+    const courtShareAdj = finalAmount + C0r + Exr - expShareR;
     const breakdown = [
-      { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareR },
+      { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareAdj },
       ...(expShareR > 0 ? [{ name: `Chi phí phụ`, amount: expShareR }] : []),
       ...(C0r > 0 ? [{ name: `Ưu đãi vị trí ${position} (${Math.round(rate * 100)}% × pool ${fmt(A)})`, amount: -C0r }] : []),
       ...(Exr > 0 ? [{ name: `Ưu đãi phần dư pool ÷ ${picked.length} thành viên`, amount: -Exr }] : [])
@@ -4186,30 +4189,31 @@ async function doClose() {
 
   // Tính guest payments — vãng lai không đóng quỹ, không hưởng ưu đãi pool, chỉ đóng phần sân + chi phí phụ
   const guestPayData = guests.map(g => {
-    const expShare     = guestExpMap[g.id] || 0;
-    const baseAmount   = courtShare + expShare;
-    const finalAmount  = Math.round(baseAmount);       // không trừ ưu đãi
-    const courtShareR  = Math.round(courtShare);
-    const expShareR    = Math.round(expShare);
+    const expShare    = guestExpMap[g.id] || 0;
+    const baseAmount  = courtShare + expShare;
+    const finalAmount = Math.round(baseAmount);         // làm tròn MỘT LẦN duy nhất
+    const expShareR   = Math.round(expShare);
+    // courtShareAdj = finalAmount − expShareR → tổng breakdown = finalAmount
+    const courtShareAdj = finalAmount - expShareR;
     const breakdown = [
-      { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareR },
+      { name: `Phí sân (${fmt(Math.round(session.court_fee))} ÷ ${totalPpl} người)`, amount: courtShareAdj },
       ...(expShareR > 0 ? [{ name: `Chi phí phụ`, amount: expShareR }] : [])
     ];
     return { session_id: session.id, guest_id: g.id, amount: finalAmount, breakdown, is_paid: false };
   });
 
   // Điều chỉnh phần dư làm tròn vào host (chênh lệch vài đồng do làm tròn)
-  // Tổng kỳ vọng = Σ(B-C) cho từng người = totalCost - Σ(C của tất cả người tham gia)
+  // Tổng kỳ vọng ĐÚNG = totalCost − A
+  //   Vì: Σ(B_i − C_i) = Σ(B_i) − Σ(C_i) = totalCost − A
+  //   A = FUND_PER_PERSON × totalClubMembers luôn là số nguyên, không bị lỗi làm tròn.
+  //   KHÔNG dùng totalDiscounts tổng hợp từ các giá trị đã làm tròn riêng lẻ vì sẽ tích luỹ sai.
   const collectedTotal  = [...memberPayData, ...guestPayData].reduce((s, p) => s + p.amount, 0);
-  const totalDiscounts  = [...memberPayData, ...guestPayData].reduce((s, p) => {
-    return s + p.breakdown.filter(b => b.amount < 0).reduce((ss, b) => ss - b.amount, 0);
-  }, 0);
-  const expectedCollect = Math.round(totalCost - totalDiscounts);
+  const expectedCollect = totalCost - A;            // số nguyên chính xác, không cần Math.round
   const adj = expectedCollect - collectedTotal;
   if (adj !== 0) {
     const hostPay = memberPayData.find(p => p.user_id === session.host_id) || memberPayData[0];
     if (hostPay) {
-      hostPay.amount = hostPay.amount + adj;  // không clamp — âm vẫn hợp lệ
+      hostPay.amount = hostPay.amount + adj;        // không clamp — âm vẫn hợp lệ
       const baseItem = hostPay.breakdown.find(b => b.amount > 0);
       if (baseItem) baseItem.amount += adj;
     }
