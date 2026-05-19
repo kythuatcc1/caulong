@@ -2539,24 +2539,22 @@ async function refreshAllFund() {
   const now = Date.now();
   if (now - _lastTotalFetch > 10000) {
     _lastTotalFetch = now;
-    const [{ data: allProfs }, { data: scBuyTxns }] = await Promise.all([
-      db.from('profiles').select('fund_balance'),
-      db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed')
-    ]);
+    const { data: allProfs } = await db.from('profiles').select('fund_balance');
     if (allProfs) {
       const profileTotal = allProfs.reduce((s, x) => s + (x.fund_balance || 0), 0);
-      // Trừ tổng tiền đã bỏ ra mua cầu khỏi quỹ tổng
-      const scSpend = (scBuyTxns||[]).reduce((s, t) => s + Math.abs(t.amount || 0), 0);
-      // Thực tế quỹ nhóm = profileTotal - scSpend (cầu đã chi nhưng chưa phân bổ về cá nhân)
-      const total = profileTotal - scSpend;
+      // Load kho trước để lấy giá trị cầu CÒN TỒN KHO (chưa dùng)
+      await loadShuttlecockInventory();
+      // Quỹ thực = tổng số dư thành viên − giá trị cầu còn tồn kho chưa dùng
+      // (cầu đã dùng thì thành viên đã bị trừ tiền rồi → không trừ nữa)
+      const inventoryValue = (scState.inStockItems || []).reduce((s, i) => s + (i.price || 0), 0);
+      const total = profileTotal - inventoryValue;
       const color = total < 0 ? 'var(--red)' : '#bf9eff';
       const text  = (total < 0 ? '-' : '') + fmt(Math.abs(total));
       ['sidebar-total-fund', 'home-total-fund', 'fund-total-all'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.textContent = text; el.style.color = color; }
       });
-      // Cập nhật hiển thị tồn kho cầu (load scState trước)
-      await loadShuttlecockInventory();
+      // Cập nhật hiển thị tồn kho cầu (scState đã load ở trên)
       updateScFundDisplay();
     }
   }
@@ -5038,24 +5036,23 @@ async function loadFundPage() {
   balEl.className   = 'fund-bal' + (bal < 0 ? ' low' : '');
   updateBalanceDisplay(bal);
 
-  // Tổng quỹ chung = tổng fund_balance - tiền đã bỏ ra mua cầu (dù chưa dùng hết)
-  const [{ data: allProfs }, { data: scTxnsF }] = await Promise.all([
-    db.from('profiles').select('fund_balance'),
-    db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed')
-  ]);
+  // Tổng quỹ thực = tổng fund_balance − giá trị cầu còn tồn kho chưa dùng
+  // (không trừ tổng tiền đã mua vì cầu đã dùng → thành viên đã bị trừ tiền rồi)
+  const { data: allProfs } = await db.from('profiles').select('fund_balance');
   const profileTotal = (allProfs||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
-  const scSpendF     = (scTxnsF||[]).reduce((s,t) => s+Math.abs(t.amount||0), 0);
-  const totalFund    = profileTotal - scSpendF;
+  // Load kho trước để lấy inStockItems (giá trị tồn kho chính xác)
+  await loadShuttlecockInventory();
+  const inventoryValue = (scState.inStockItems || []).reduce((s, i) => s + (i.price || 0), 0);
+  const totalFund    = profileTotal - inventoryValue;
   const totalEl = document.getElementById('fund-total-all');
   if (totalEl) {
     totalEl.textContent = (totalFund < 0 ? '-' : '') + fmt(Math.abs(totalFund));
     totalEl.style.color = totalFund < 0 ? 'var(--red)' : '#bf9eff';
   }
-  // Hiển thị tồn kho cầu chưa phân bổ (updateScFundDisplay sẽ lo sau khi loadShuttlecockInventory)
+  // Hiển thị tồn kho cầu chưa phân bổ (scState đã load ở trên)
   const scSpendEl = document.getElementById('fund-sc-spend');
   if (scSpendEl) scSpendEl.style.display = 'none'; // reset, updateScFundDisplay sẽ bật lại nếu có tồn kho
-  // Cập nhật thông tin tồn kho chưa phân bổ (cần scState đã load)
-  await loadShuttlecockInventory();
+  updateScFundDisplay();
   renderShuttlecockCard();
 
   // Kiểm tra nợ buổi chưa trả
@@ -6021,16 +6018,16 @@ let adminTab = 'pending';
 async function loadAdminPage() {
   if (!me?.is_admin) return toast('Không có quyền admin', 'err');
 
-  // Tổng quỹ = tổng fund_balance - tiền đã bỏ ra mua cầu
+  // Tổng quỹ thực = tổng fund_balance − giá trị cầu còn tồn kho chưa dùng
   const { data: profiles } = await db.from('profiles').select('id,name,fund_balance').order('name');
-  const { data: scTxnsA }  = await db.from('fund_transactions').select('amount').eq('type','shuttlecock_buy').eq('status','confirmed');
   const profileTotalA = (profiles||[]).reduce((s,p) => s+(p.fund_balance||0), 0);
-  const scSpendA      = (scTxnsA||[]).reduce((s,t) => s+Math.abs(t.amount||0), 0);
-  const total         = profileTotalA - scSpendA;
+  await loadShuttlecockInventory();
+  const inventoryValueA = (scState.inStockItems || []).reduce((s, i) => s + (i.price || 0), 0);
+  const total         = profileTotalA - inventoryValueA;
   const members       = (profiles||[]).length;
   document.getElementById('admin-total-fund').textContent = fmt(total);
   document.getElementById('admin-fund-sub').textContent   =
-    `${members} thành viên` + (scSpendA > 0 ? ` · 🏸 Đã trích cầu: ${fmt(scSpendA)}` : '');
+    `${members} thành viên` + (inventoryValueA > 0 ? ` · 🏸 Cầu tồn kho: ${fmt(inventoryValueA)}` : '');
 
   // Pending count badge
   const { data: pending } = await db.from('fund_transactions')
