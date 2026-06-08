@@ -2,17 +2,18 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Cầu Lông KTH</title>
 <!-- PWA Manifest -->
 <link rel="manifest" href="manifest.json?v=icon-cau-long-v2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-title" content="Cầu Lông">
 <meta name="application-name" content="Cầu Lông KTH">
-<meta name="theme-color" content="#0d0f14" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#0d0f14">
+<meta name="theme-color" content="#06120f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#06120f">
 <meta name="msapplication-TileColor" content="#0d0f14">
 <meta name="msapplication-navbutton-color" content="#0d0f14">
 <meta name="description" content="App bình chọn & chia tiền đánh cầu lông">
@@ -39,6 +40,32 @@
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* iPhone status-bar/safe-area fix */
+html{
+  background:#06120f;
+  min-height:100%;
+}
+@supports (-webkit-touch-callout: none) {
+  html,body{
+    background-color:#06120f !important;
+    min-height:100dvh;
+  }
+  /* Lấp phần trắng phía trên thanh trạng thái iPhone bằng nền tối cùng tông app */
+  body::after{
+    content:'';
+    position:fixed;
+    top:-80px; left:0; right:0;
+    height:calc(env(safe-area-inset-top) + 96px);
+    background:linear-gradient(180deg,#06120f 0%,#071610 52%,rgba(7,16,18,.94) 100%);
+    pointer-events:none;
+    z-index:0;
+  }
+  #bg-layer{
+    top:calc(-1 * env(safe-area-inset-top));
+    height:calc(100% + env(safe-area-inset-top));
+  }
+}
 
 /* ── iOS 26 Liquid Glass Design Tokens ── */
 :root {
@@ -84,7 +111,7 @@ body {
   font-family: 'Be Vietnam Pro', sans-serif;
   color: var(--text);
   min-height: 100vh;
-  background-color: #060810;
+  background-color: #06120f;
   -webkit-font-smoothing: antialiased;
 }
 
