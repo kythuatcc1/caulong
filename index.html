@@ -4467,9 +4467,11 @@ async function doClose() {
     .sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   const hostVote   = selfVotes.find(v => v.voter_id === session.host_id);
   const otherVotes = selfVotes.filter(v => v.voter_id !== session.host_id);
+  // Host chỉ được đưa vào danh sách chia tiền/ưu đãi nếu ĐÃ bình chọn tham gia (hostVote tồn tại).
+  // Nếu host không bình chọn: không chia tiền/ưu đãi cho host, host vẫn bị trừ 15k pool như quy định
+  // (xem autoDeductFundForSession bước 1 — áp dụng cho toàn bộ thành viên CLB, không phụ thuộc picked).
   const pickedVotes = [hostVote, ...otherVotes].filter(Boolean).slice(0, session.max_players);
   const pickedUids  = new Set(pickedVotes.map(v => v.voter_id));
-  if (!pickedUids.has(session.host_id)) pickedUids.add(session.host_id);
   const picked = members.filter(m => pickedUids.has(m.user_id));
 
   // Tổng người = thành viên + khách
