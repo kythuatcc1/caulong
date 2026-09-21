@@ -1568,6 +1568,13 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
           onkeydown="if(event.key==='Enter')doEnter()">
         <p style="font-size:12px;color:var(--muted);margin-top:8px">Bắt đầu bằng số <strong style="color:var(--accent)">0</strong>, đủ <strong style="color:var(--accent)">10 chữ số</strong> — App sẽ ghi nhớ tài khoản</p>
       </div>
+      <div class="fg">
+        <label class="fl">Mã xác thực (4-6 số)</label>
+        <input class="fi" id="a-pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off"
+          maxlength="6"
+          onkeydown="if(event.key==='Enter')doEnter()">
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Lần đầu đăng nhập: tự đặt 1 mã 4-6 số bất kỳ, các lần sau nhập lại đúng mã này để xác nhận chính chủ.</p>
+      </div>
       <button class="btn" onclick="doEnter()">Vào app →</button>
 
       <!-- Checkbox ghi nhớ đăng nhập -->
@@ -2594,23 +2601,32 @@ async function doEnter() {
   if (!db) return toast('Chưa cấu hình Supabase','err');
   const name = document.getElementById('a-name').value.trim();
   const phone = normPhone(document.getElementById('a-phone').value);
+  const pin = (document.getElementById('a-pin')?.value || '').trim();
   if (!name) return toast('Nhập họ và tên của bạn nhé','err');
   if (phone.length !== 10) return toast('Số điện thoại phải đủ 10 chữ số','err');
   if (phone[0] !== '0') return toast('Số điện thoại phải bắt đầu bằng số 0','err');
+  if (!/^[0-9]{4,6}$/.test(pin)) return toast('Mã xác thực phải gồm 4-6 chữ số','err');
   load(true);
-  const { data: existing } = await db.rpc('get_profile_by_phone', { p_phone: phone }).single();
-  if (!existing) {
-    load(false);
-    return toast('Số điện thoại chưa được đăng ký. Liên hệ quản trị viên để được thêm vào nhóm.','err');
+
+  // Thử đăng nhập bằng mã xác thực đã thiết lập trước đó
+  let { data: existing, error } = await db.rpc('login_with_pin', { p_phone: phone, p_pin: pin }).single();
+
+  if (error) {
+    if (error.message && error.message.includes('chưa thiết lập')) {
+      // Lần đầu đăng nhập trên tài khoản này → dùng mã vừa nhập làm mã xác thực mới
+      const { data: created, error: setupErr } = await db.rpc('set_initial_pin', { p_phone: phone, p_name: name, p_new_pin: pin }).single();
+      if (setupErr) {
+        load(false);
+        return toast(setupErr.message || 'Không thể tạo mã xác thực. Kiểm tra lại tên/SĐT.', 'err');
+      }
+      existing = created;
+      toast('✓ Đã tạo mã xác thực mới cho tài khoản này — nhớ mã này cho lần sau', 'ok');
+    } else {
+      load(false);
+      return toast(error.message || 'Đăng nhập thất bại', 'err');
+    }
   }
-  if (existing.is_banned) {
-    load(false);
-    return toast('Tài khoản của bạn đã bị khóa. Liên hệ admin.', 'err');
-  }
-  if (existing.name.trim().toLowerCase() !== name.toLowerCase()) {
-    load(false);
-    return toast('Tên không khớp với số điện thoại. Vui lòng kiểm tra lại.', 'err');
-  }
+
   me = {...existing};
   // Ghi nhớ đăng nhập nếu checkbox được tick
   const remember = document.getElementById('remember-me')?.checked !== false;
