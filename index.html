@@ -2400,7 +2400,7 @@ function init() {
   initNotifications();
 
   // ── Verify + sync profile ở background ──
-  db.rpc('get_profile_by_id', { p_id: parsed.id }).single()
+  db.rpc('get_session', { p_id: parsed.id, p_token: parsed.session_token }).single()
     .then(({ data }) => {
       if (data) {
         if (data.is_banned) {
@@ -2450,7 +2450,7 @@ async function quickLogin() {
   const parsed = JSON.parse(saved);
   const isPersisted = !!localStorage.getItem('cvUser');
   load(true);
-  const { data } = await db.rpc('get_profile_by_id', { p_id: parsed.id }).single();
+  const { data } = await db.rpc('get_session', { p_id: parsed.id, p_token: parsed.session_token }).single();
   load(false);
   if (data) {
     if (data.is_banned) {
@@ -2652,6 +2652,9 @@ async function doEnter() {
   setTimeout(checkAndShowLowFundAlert, 800);
 }
 function doExit() {
+  if (me?.id && me?.session_token) {
+    db.rpc('logout_session', { p_id: me.id, p_token: me.session_token }).then(()=>{}).catch(()=>{});
+  }
   me = null;
   localStorage.removeItem('cvUser');
   sessionStorage.removeItem('cvUser');
@@ -5432,7 +5435,7 @@ function closeLowFundModal() {
 async function loadFundPage() {
   if (!me) return;
   // Refresh balance
-  const { data: profile } = await db.rpc('get_profile_by_id', { p_id: me.id }).single();
+  const { data: profile } = await db.rpc('get_session', { p_id: me.id, p_token: me.session_token }).single();
   if (profile) {
     me.fund_balance = profile.fund_balance;
     me.is_admin     = profile.is_admin;
