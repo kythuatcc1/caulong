@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Cầu Lông</title>
+<title>Cầu Lông KTH</title>
 <!-- PWA Manifest -->
 <link rel="manifest" href="manifest.json?v=icon-cau-long-v2">
 <meta name="mobile-web-app-capable" content="yes">
@@ -4467,11 +4467,9 @@ async function doClose() {
     .sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   const hostVote   = selfVotes.find(v => v.voter_id === session.host_id);
   const otherVotes = selfVotes.filter(v => v.voter_id !== session.host_id);
-  // Host chỉ được đưa vào danh sách chia tiền/ưu đãi nếu ĐÃ bình chọn tham gia (hostVote tồn tại).
-  // Nếu host không bình chọn: không chia tiền/ưu đãi cho host, host vẫn bị trừ 15k pool như quy định
-  // (xem autoDeductFundForSession bước 1 — áp dụng cho toàn bộ thành viên CLB, không phụ thuộc picked).
   const pickedVotes = [hostVote, ...otherVotes].filter(Boolean).slice(0, session.max_players);
   const pickedUids  = new Set(pickedVotes.map(v => v.voter_id));
+  if (!pickedUids.has(session.host_id)) pickedUids.add(session.host_id);
   const picked = members.filter(m => pickedUids.has(m.user_id));
 
   // Tổng người = thành viên + khách
@@ -4662,8 +4660,8 @@ async function autoDeductFundForSession(picked, session) {
 
   // Trừ 15k từ thành viên CLB không bị banned (kể cả người không tham gia buổi)
   for (const prof of allProfiles) {
-    const newBal = prof.fund_balance - POOL_CONTRIBUTION;
-    await db.from('profiles').update({ fund_balance: newBal }).eq('id', prof.id);
+    const { data: rpcBal1 } = await db.rpc('adjust_fund_balance', { p_user_id: prof.id, p_delta: -POOL_CONTRIBUTION });
+    const newBal = rpcBal1 ?? (prof.fund_balance - POOL_CONTRIBUTION);
     await db.from('fund_transactions').insert({
       user_id:      prof.id,
       amount:       -POOL_CONTRIBUTION,
@@ -4690,9 +4688,8 @@ async function autoDeductFundForSession(picked, session) {
     const info   = profileMap[pay.user_id] || { name: '?', bal: 0 };
     // pay.amount = B - C (có thể âm nếu ưu đãi > phí bình quân)
     const adjustment = pay.amount; // dương → trừ thêm | âm → hoàn lại
-    const newBal = info.bal - adjustment;
-
-    await db.from('profiles').update({ fund_balance: newBal }).eq('id', pay.user_id);
+    const { data: rpcBal2 } = await db.rpc('adjust_fund_balance', { p_user_id: pay.user_id, p_delta: -adjustment });
+    const newBal = rpcBal2 ?? (info.bal - adjustment);
 
     if (adjustment !== 0) {
       await db.from('fund_transactions').insert({
@@ -5108,7 +5105,6 @@ async function assignGuestToMember(gpid, userId) {
   const guestAmount = gp.amount || 0;
   const guestName   = gp.session_guests?.name || 'Khách';
   const oldBal      = assignedProfile?.fund_balance || 0;
-  const newBal      = oldBal - guestAmount;
 
   // Gán + đánh dấu đã thu
   await db.from('guest_payments').update({
@@ -5117,8 +5113,9 @@ async function assignGuestToMember(gpid, userId) {
     paid_at: new Date().toISOString()
   }).eq('id', gpid);
 
-  // Trừ quỹ cá nhân thành viên được gán
-  await db.from('profiles').update({ fund_balance: newBal }).eq('id', userId);
+  // Trừ quỹ cá nhân thành viên được gán (qua RPC, không cho client ghi đè trực tiếp)
+  const { data: rpcBal3 } = await db.rpc('adjust_fund_balance', { p_user_id: userId, p_delta: -guestAmount });
+  const newBal = rpcBal3 ?? (oldBal - guestAmount);
 
   // Ghi fund_transaction
   await db.from('fund_transactions').insert({
@@ -5158,13 +5155,8 @@ async function unassignGuest(gpid) {
     const guestAmt  = gp.amount || 0;
     const guestName = gp.session_guests?.name || 'Khách';
 
-    // Lấy số dư hiện tại để hoàn lại
-    const { data: profile } = await db.from('profiles').select('fund_balance').eq('id', userId).single();
-    const oldBal = profile?.fund_balance ?? 0;
-    const newBal = oldBal + guestAmt;
-
-    // Hoàn quỹ
-    await db.from('profiles').update({ fund_balance: newBal }).eq('id', userId);
+    // Hoàn quỹ (qua RPC, không cho client ghi đè trực tiếp)
+    const { data: newBal } = await db.rpc('adjust_fund_balance', { p_user_id: userId, p_delta: guestAmt });
 
     // Ghi fund_transaction hoàn quỹ
     await db.from('fund_transactions').insert({
@@ -5294,8 +5286,8 @@ async function choosePayMethod(method) {
       confirmed_at: new Date().toISOString()
     });
     if (error) { load(false); return toast(error.message, 'err'); }
-    await db.from('profiles').update({ fund_balance: (me.fund_balance||0) - amount }).eq('id', me.id);
-    me.fund_balance = (me.fund_balance||0) - amount;
+    const { data: newBalSelf } = await db.rpc('adjust_fund_balance', { p_user_id: me.id, p_delta: -amount });
+    me.fund_balance = newBalSelf ?? ((me.fund_balance||0) - amount);
     localStorage.setItem('cvUser', JSON.stringify(me));
     await db.from('payments').update({ is_paid:true, paid_method:'fund', paid_at:new Date().toISOString() }).eq('id', pid);
     load(false);
@@ -6521,10 +6513,11 @@ async function adminConfirmTxn(txnId, userId, amount, action) {
   }).eq('id', txnId);
 
   if (action === 'confirmed') {
-    // Cộng vào số dư
+    // Quỹ đã được DB trigger tự cộng ngay khi status chuyển sang 'confirmed'
+    // (xem trigger trg_fund_transactions_confirmed trong file SQL) — không
+    // gọi RPC ở đây nữa để tránh cộng trùng 2 lần. Chỉ đọc lại số dư mới nhất.
     const { data: p } = await db.from('profiles').select('fund_balance').eq('id', userId).single();
-    const newBal = (p?.fund_balance || 0) + amount;
-    await db.from('profiles').update({ fund_balance: newBal }).eq('id', userId);
+    const newBal = p?.fund_balance || 0;
 
     // ── Change 4: Tự động trừ các buổi chưa thanh toán nếu đủ số dư ──
     await autoPayPendingAfterDeposit(userId, newBal);
@@ -6547,9 +6540,8 @@ async function autoPayPendingAfterDeposit(userId, currentBal) {
 
   let bal = currentBal;
   for (const pay of unpaid) {
-    // Trừ dù âm (trả nợ cũ / bù âm)
-    const newBal = bal - pay.amount;
-    await db.from('profiles').update({ fund_balance: newBal }).eq('id', userId);
+    // Trừ dù âm (trả nợ cũ / bù âm), qua RPC để tránh ghi đè trực tiếp/đua điều kiện
+    const { data: newBal } = await db.rpc('adjust_fund_balance', { p_user_id: userId, p_delta: -pay.amount });
     await db.from('fund_transactions').insert({
       user_id:     userId,
       amount:      -pay.amount,
