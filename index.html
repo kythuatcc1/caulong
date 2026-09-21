@@ -2393,7 +2393,7 @@ function init() {
   initNotifications();
 
   // ── Verify + sync profile ở background ──
-  db.from('profiles').select('*').eq('id', parsed.id).single()
+  db.rpc('get_profile_by_id', { p_id: parsed.id }).single()
     .then(({ data }) => {
       if (data) {
         if (data.is_banned) {
@@ -2443,7 +2443,7 @@ async function quickLogin() {
   const parsed = JSON.parse(saved);
   const isPersisted = !!localStorage.getItem('cvUser');
   load(true);
-  const { data } = await db.from('profiles').select('*').eq('id', parsed.id).single();
+  const { data } = await db.rpc('get_profile_by_id', { p_id: parsed.id }).single();
   load(false);
   if (data) {
     if (data.is_banned) {
@@ -2598,7 +2598,7 @@ async function doEnter() {
   if (phone.length !== 10) return toast('Số điện thoại phải đủ 10 chữ số','err');
   if (phone[0] !== '0') return toast('Số điện thoại phải bắt đầu bằng số 0','err');
   load(true);
-  const { data: existing } = await db.from('profiles').select('*').eq('phone',phone).single();
+  const { data: existing } = await db.rpc('get_profile_by_phone', { p_phone: phone }).single();
   if (!existing) {
     load(false);
     return toast('Số điện thoại chưa được đăng ký. Liên hệ quản trị viên để được thêm vào nhóm.','err');
@@ -3826,8 +3826,10 @@ function updateConfirmBtn() {
 }
 
 async function loadAllProfilesForPicker() {
-  const { data: profiles } = await db.from('profiles').select('id,name,phone').order('name');
-  allProfiles = profiles || [];
+  const { data: profiles } = await db.rpc('list_members_masked');
+  // phone ở đây đã được che (chỉ còn 3 số cuối) — đủ để phân biệt người
+  // trùng tên mà không lộ SĐT đầy đủ cho bất kỳ ai mở được trang.
+  allProfiles = (profiles || []).map(p => ({ id: p.id, name: p.name, phone: p.phone_masked }));
   renderAddMemberList('');
 }
 
@@ -5414,7 +5416,7 @@ function closeLowFundModal() {
 async function loadFundPage() {
   if (!me) return;
   // Refresh balance
-  const { data: profile } = await db.from('profiles').select('fund_balance,is_admin').eq('id', me.id).single();
+  const { data: profile } = await db.rpc('get_profile_by_id', { p_id: me.id }).single();
   if (profile) {
     me.fund_balance = profile.fund_balance;
     me.is_admin     = profile.is_admin;
