@@ -1979,27 +1979,6 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="hdr-title">Quản lý quỹ</div>
   </div>
   <div class="content">
-    <!-- Công cụ admin -->
-    <div class="admin-tools-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
-      <button class="admin-tool-btn" onclick="openDiscountSettings()"
-        style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
-        border-radius:14px;background:rgba(200,255,71,.08);border:1px solid rgba(200,255,71,.2);
-        color:var(--accent);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
-        <i class="ph-bold ph-sliders" style="font-size:22px"></i>Cài đặt ưu đãi
-      </button>
-      <button class="admin-tool-btn" onclick="triggerBgPicker()"
-        style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
-        border-radius:14px;background:rgba(71,212,255,.08);border:1px solid rgba(71,212,255,.2);
-        color:var(--accent2);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
-        <i class="ph-bold ph-image" style="font-size:22px"></i>Đổi hình nền
-      </button>
-      <button class="admin-tool-btn" onclick="openBgAdjust()"
-        style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;
-        border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
-        color:var(--muted);font-family:'Be Vietnam Pro',sans-serif;font-size:11px;font-weight:700;cursor:pointer">
-        <i class="ph-bold ph-crop" style="font-size:22px"></i>Chỉnh vị trí
-      </button>
-    </div>
     <!-- Tổng quỹ -->
     <div class="fund-hero" style="background:linear-gradient(135deg,#0e1a20,#081018);border-color:rgba(71,212,255,.2)">
       <div style="color:var(--muted);font-size:12px;margin-bottom:4px">Tổng quỹ</div>
@@ -5937,7 +5916,7 @@ function closeDepositSheet(e) {
   }
 }
 
-// Đóng và giữ lại giao dịch pending (chờ admin xác nhận sau)
+// Đóng và giữ lại giao dịch pending (chờ webhook SePay tự xác nhận sau)
 function closeDepositKeepPending() {
   clearInterval(depPollTimer);
   stopDepositRealtime();
@@ -6146,77 +6125,40 @@ function renderAdminPending(txns) {
         </div>
         ${t.description ? `<div style="font-size:12px;color:var(--muted);margin-bottom:6px">${t.description}</div>` : ''}
         ${receipt}
+        <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">
+          ⏳ Đang chờ SePay tự động khớp giao dịch ngân hàng và xác nhận.
+          Đã bỏ xác nhận bằng tay — admin chỉ có thể từ chối nếu yêu cầu bị treo/sai.
+        </div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button onclick="adminConfirmTxn('${t.id}','${t.user_id}',${t.amount},'confirmed')"
-            style="flex:1;padding:10px;border-radius:10px;background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);
-            color:var(--green);font-family:'Be Vietnam Pro',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
-            ✓ Xác nhận
-          </button>
           <button onclick="adminConfirmTxn('${t.id}','${t.user_id}',${t.amount},'rejected')"
             style="flex:1;padding:10px;border-radius:10px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);
             color:var(--red);font-family:'Be Vietnam Pro',sans-serif;font-size:13px;font-weight:700;cursor:pointer">
-            ✕ Từ chối
+            ✕ Từ chối (yêu cầu bị treo/sai)
           </button>
         </div>
       </div>`;
   }).join('');
 }
 
+// ĐÃ BỎ XÁC NHẬN NẠP QUỸ BẰNG TAY: hàm này giờ chỉ còn xử lý 'rejected'
+// (huỷ yêu cầu treo/sai). Việc cộng tiền + tự động trừ các buổi chưa
+// thanh toán đã chuyển hoàn toàn vào trigger credit_fund_on_confirm()
+// trong DB, chạy khi webhook SePay tự xác nhận — không phụ thuộc vào
+// việc admin có bấm nút hay không nữa. RLS ở DB cũng đã chặn cứng,
+// không cho bất kỳ ai (kể cả gọi thẳng REST API) tự đặt status =
+// 'confirmed' cho giao dịch loại 'deposit' — chỉ webhook mới làm được.
 async function adminConfirmTxn(txnId, userId, amount, action) {
+  if (action !== 'rejected') return; // an toàn: chặn luôn ở client, phòng khi code cũ còn gọi nhầm
   load(true);
   await db.from('fund_transactions').update({
-    status:       action,
+    status:       'rejected',
     confirmed_by: me.id,
     confirmed_at: new Date().toISOString()
   }).eq('id', txnId);
-
-  if (action === 'confirmed') {
-    // Quỹ đã được DB trigger tự cộng ngay khi status chuyển sang 'confirmed'
-    // (xem trigger trg_fund_transactions_confirmed trong file SQL) — không
-    // gọi RPC ở đây nữa để tránh cộng trùng 2 lần. Chỉ đọc lại số dư mới nhất.
-    const { data: p } = await db.from('profiles').select('fund_balance').eq('id', userId).single();
-    const newBal = p?.fund_balance || 0;
-
-    // ── Change 4: Tự động trừ các buổi chưa thanh toán nếu đủ số dư ──
-    await autoPayPendingAfterDeposit(userId, newBal);
-  }
   load(false);
-  toast(action === 'confirmed' ? '✓ Đã xác nhận & cộng quỹ' : '✕ Đã từ chối', action==='confirmed'?'ok':'');
+  toast('✕ Đã từ chối');
   await refreshTotalNow();
   loadAdminPage();
-}
-
-// Sau khi nạp quỹ: tự động trừ các buổi còn nợ
-async function autoPayPendingAfterDeposit(userId, currentBal) {
-  // Tìm các payment chưa trả của user này
-  const { data: unpaid } = await db.from('payments')
-    .select('id, amount, session_id, sessions(title)')
-    .eq('user_id', userId).eq('is_paid', false)
-    .order('created_at', { ascending: true });
-
-  if (!unpaid?.length) return;
-
-  let bal = currentBal;
-  for (const pay of unpaid) {
-    // Trừ dù âm (trả nợ cũ / bù âm), qua RPC để tránh ghi đè trực tiếp/đua điều kiện
-    const { data: newBal } = await db.rpc('adjust_fund_balance', { p_user_id: userId, p_delta: -pay.amount });
-    await db.from('fund_transactions').insert({
-      user_id:     userId,
-      amount:      -pay.amount,
-      type:        'deduction',
-      description: `Tự động trừ (nạp quỹ): ${pay.sessions?.title || ''}`,
-      session_id:  pay.session_id,
-      status:      'confirmed',
-      confirmed_by: me.id,
-      confirmed_at: new Date().toISOString()
-    });
-    await db.from('payments').update({
-      is_paid:     true,
-      paid_method: 'fund',
-      paid_at:     new Date().toISOString()
-    }).eq('id', pay.id);
-    bal = newBal;
-  }
 }
 
 function renderAdminMembers(profiles) {
