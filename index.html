@@ -1424,7 +1424,7 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <div class="logo" style="margin-bottom:6px">Cầu <span>Lông</span> <span class="kth-mark"><b>KTH</b></span></div>
     <p style="color:var(--muted);font-size:14px;margin-bottom:32px;line-height:1.6">
       Bình chọn &amp; chia tiền đánh cầu<br>
-      <strong style="color:var(--accent2)">Không cần đăng ký</strong> — nhập tên &amp; SĐT là xong
+      <strong style="color:var(--accent2)">Không cần đăng ký</strong> — nhập SĐT &amp; mật khẩu là xong
     </p>
 
     <div id="warn-cfg" style="display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:12px;padding:14px;margin-bottom:20px;font-size:13px;color:var(--red)">
@@ -1458,10 +1458,6 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
     <!-- Form đăng nhập mới (ẩn khi có quick login) -->
     <div id="new-login-form">
       <div class="fg">
-        <label class="fl">Họ và tên</label>
-        <input class="fi" id="a-name" type="text" placeholder="Nguyễn Văn A" autocomplete="name">
-      </div>
-      <div class="fg">
         <label class="fl">Số điện thoại</label>
         <input class="fi" id="a-phone" type="tel" placeholder="0912 345 678" autocomplete="tel"
           maxlength="12"
@@ -1470,11 +1466,11 @@ const BANK_NAME    = 'NGUYEN KIM KHANH';
         <p style="font-size:12px;color:var(--muted);margin-top:8px">Bắt đầu bằng số <strong style="color:var(--accent)">0</strong>, đủ <strong style="color:var(--accent)">10 chữ số</strong> — App sẽ ghi nhớ tài khoản</p>
       </div>
       <div class="fg">
-        <label class="fl">Mã xác thực (4-6 số)</label>
+        <label class="fl">Mật khẩu (4-6 số)</label>
         <input class="fi" id="a-pin" type="password" inputmode="numeric" placeholder="••••" autocomplete="off"
           maxlength="6"
           onkeydown="if(event.key==='Enter')doEnter()">
-        <p style="font-size:12px;color:var(--muted);margin-top:8px">Lần đầu đăng nhập: tự đặt 1 mã 4-6 số bất kỳ, các lần sau nhập lại đúng mã này để xác nhận chính chủ.</p>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px">Lần đầu đăng nhập: tự đặt 1 mật khẩu 4-6 số bất kỳ, các lần sau nhập lại đúng mật khẩu này để xác nhận chính chủ.</p>
       </div>
       <button class="btn" onclick="doEnter()">Vào app →</button>
 
@@ -2474,13 +2470,11 @@ function genCode() { return Math.random().toString(36).substring(2,8).toUpperCas
 // ═══════════════════════════════════════
 async function doEnter() {
   if (!db) return toast('Chưa cấu hình Supabase','err');
-  const name = document.getElementById('a-name').value.trim();
   const phone = normPhone(document.getElementById('a-phone').value);
   const pin = (document.getElementById('a-pin')?.value || '').trim();
-  if (!name) return toast('Nhập họ và tên của bạn nhé','err');
   if (phone.length !== 10) return toast('Số điện thoại phải đủ 10 chữ số','err');
   if (phone[0] !== '0') return toast('Số điện thoại phải bắt đầu bằng số 0','err');
-  if (!/^[0-9]{4,6}$/.test(pin)) return toast('Mã xác thực phải gồm 4-6 chữ số','err');
+  if (!/^[0-9]{4,6}$/.test(pin)) return toast('Mật khẩu phải gồm 4-6 chữ số','err');
   load(true);
 
   // Thử đăng nhập bằng mã xác thực đã thiết lập trước đó
@@ -2488,14 +2482,16 @@ async function doEnter() {
 
   if (error) {
     if (error.message && error.message.includes('chưa thiết lập')) {
-      // Lần đầu đăng nhập trên tài khoản này → dùng mã vừa nhập làm mã xác thực mới
-      const { data: created, error: setupErr } = await db.rpc('set_initial_pin', { p_phone: phone, p_name: name, p_new_pin: pin }).single();
+      // Lần đầu đăng nhập trên tài khoản này → dùng mật khẩu vừa nhập làm mật khẩu mới
+      // Không còn nhập tên → tự đặt tên tạm theo 3 số cuối SĐT (không lộ full SĐT)
+      const autoName = 'Thành viên ' + phone.slice(-3);
+      const { data: created, error: setupErr } = await db.rpc('set_initial_pin', { p_phone: phone, p_name: autoName, p_new_pin: pin }).single();
       if (setupErr) {
         load(false);
-        return toast(setupErr.message || 'Không thể tạo mã xác thực. Kiểm tra lại tên/SĐT.', 'err');
+        return toast(setupErr.message || 'Không thể tạo mật khẩu. Kiểm tra lại SĐT.', 'err');
       }
       existing = created;
-      toast('✓ Đã tạo mã xác thực mới cho tài khoản này — nhớ mã này cho lần sau', 'ok');
+      toast('✓ Đã tạo mật khẩu mới cho tài khoản này — nhớ mật khẩu cho lần sau', 'ok');
     } else {
       load(false);
       return toast(error.message || 'Đăng nhập thất bại', 'err');
