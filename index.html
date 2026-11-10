@@ -5157,6 +5157,10 @@ function getTypeLabel(t) {
   }
   if (t.type === 'deduction') {
     const d = t.description || '';
+    if (d.startsWith('Admin trừ quỹ')) {
+      const n = d.replace(/^Admin trừ quỹ:?\s*/, '');
+      return n ? `Admin trừ quỹ · ${_escTxt(n)}` : 'Admin trừ quỹ';
+    }
     if (d.startsWith('Bảo lãnh khách')) {
       const m = d.match(/Bảo lãnh khách "([^"]+)"/);
       return m ? `Bảo lãnh cho "${m[1]}"` : 'Bảo lãnh';
@@ -5169,6 +5173,11 @@ function getTypeLabel(t) {
       const m = d.match(/Hoàn quỹ bảo lãnh "([^"]+)"/);
       return m ? `Hoàn bảo lãnh "${m[1]}"` : 'Hoàn tiền';
     }
+    if (d.startsWith('Admin cộng quỹ')) {
+      const n = d.replace(/^Admin cộng quỹ:?\s*/, '');
+      return n ? `Admin cộng quỹ · ${_escTxt(n)}` : 'Admin cộng quỹ';
+    }
+    if (d.startsWith('Hoàn tiền mua cầu')) return _escTxt(d);
     return 'Hoàn tiền';
   }
   return t.type || '—';
@@ -5231,6 +5240,7 @@ async function loadShuttlecockInventory() {
         price: totalPrice,
         pricePerBird: avgPrice,
         orderedByName: byName,
+        note,
         items
       });
 
@@ -5326,7 +5336,7 @@ function renderShuttlecockCard() {
               <div class="sc-batch-row">
                 <div>
                   <span style="color:var(--purple)">⚙️ Điều chỉnh kho ${sign}${b.count} trái</span>
-                  ${b.note ? `<div style="font-size:10px;color:var(--muted)">${b.note}</div>` : ''}
+                  ${b.note ? `<div style="font-size:10px;color:var(--muted)">${_escTxt(b.note)}</div>` : ''}
                   ${b.orderedByName ? `<div style="font-size:10px;color:var(--muted)">Admin: ${b.orderedByName}</div>` : ''}
                 </div>
                 <span style="color:var(--muted);font-size:11px">${new Date(b.date).toLocaleDateString('vi-VN')}</span>
@@ -5337,6 +5347,7 @@ function renderShuttlecockCard() {
               <div>
                 <span style="color:var(--text2)">${new Date(b.date).toLocaleDateString('vi-VN')} · ${b.count} trái</span>
                 ${b.orderedByName ? `<div style="font-size:10px;color:var(--muted)">Người tạo: ${b.orderedByName}</div>` : ''}
+                ${b.note ? `<div style="font-size:10px;color:var(--green)">${_escTxt(b.note)}</div>` : ''}
               </div>
               <span style="color:var(--accent2);font-weight:700">${fmt(b.price)}</span>
             </div>`;
@@ -5388,6 +5399,8 @@ function openAdjustSCSheet() {
   document.getElementById('adj-sc-current').textContent = remaining;
   document.getElementById('adj-sc-new').value = remaining;
   document.getElementById('adj-sc-note').value = '';
+  populateBuyerSelect('adj-sc-buyer');
+  document.getElementById('adj-sc-buyer-wrap').style.display = 'none';
   // Reset per-item price UI
   document.getElementById('adj-sc-delta-preview').style.display = 'none';
   document.getElementById('adj-sc-prices-wrap').style.display = 'none';
@@ -5406,9 +5419,11 @@ function onAdjSCNewChange() {
   if (isNaN(newVal) || newVal < 0) {
     preview.style.display = 'none';
     wrap.style.display = 'none';
+    document.getElementById('adj-sc-buyer-wrap').style.display = 'none';
     return;
   }
   const delta = newVal - remaining;
+  document.getElementById('adj-sc-buyer-wrap').style.display = (delta > 0 && me?.is_admin) ? '' : 'none';
 
   // Preview delta
   if (delta !== 0) {
@@ -5462,6 +5477,7 @@ function updateAdjSCPriceTotal() {
   } else {
     el.textContent = '';
   }
+  updateBuyerHint('adj-sc-buyer', 'adj-sc-buyer-hint', total);
 }
 
 function closeAdjustSCSheet(e) {
@@ -5491,6 +5507,12 @@ async function confirmAdjustSC() {
   const now = new Date().toISOString();
   const totalItemValue = itemPrices.reduce((s, p) => s + p, 0);
 
+  // Người mua (admin gán) → được cộng lại số tiền các trái cầu đã mua
+  const buyerSel  = document.getElementById('adj-sc-buyer');
+  const buyerId   = (delta > 0 && me.is_admin && buyerSel) ? buyerSel.value : '';
+  const buyerName = buyerId ? (buyerSel.options[buyerSel.selectedIndex]?.textContent || '').trim() : '';
+  const itemNote  = [buyerName ? `Người mua: ${buyerName}` : '', note].filter(Boolean).join(' · ') || null;
+
   // 1) Tạo UUID ngay tại client — không cần query lại
   const txId = crypto.randomUUID();
 
@@ -5500,7 +5522,8 @@ async function confirmAdjustSC() {
     user_id: me.id, amount: 0, type: 'shuttlecock_adjust',
     description: JSON.stringify({
       delta, new_value: newVal, old_value: remaining, note,
-      admin_name: me.name || '', total_item_value: totalItemValue
+      admin_name: me.name || '', total_item_value: totalItemValue,
+      buyer_id: buyerId || null, buyer_name: buyerName || null
     }),
     status: 'confirmed', confirmed_by: me.id, confirmed_at: now
   });
@@ -5510,11 +5533,19 @@ async function confirmAdjustSC() {
     // THÊM cầu → insert N dòng vào shuttlecock_items
     const rows = itemPrices.map((price, i) => ({
       transaction_id: txId, price, action_type: 'add',
-      status: 'in_stock', note: note || null,
+      status: 'in_stock', note: itemNote,
       adjusted_by_name: me.name || '', item_index: i + 1
     }));
     const { error: addErr } = await db.from('shuttlecock_items').insert(rows);
     if (addErr) { load(false); toast(`⚠️ Lỗi lưu shuttlecock_items: ${addErr.message}`, 'err'); return; }
+
+    if (buyerId && totalItemValue > 0) {
+      const r = await adminCreditMember(buyerId, totalItemValue,
+        `Hoàn tiền mua cầu (${delta} trái)${note ? ': ' + note : ''}`);
+      if (r.error || r.txErr) toast(`⚠️ Đã thêm cầu nhưng cộng tiền cho ${buyerName} bị lỗi: ${(r.error||r.txErr).message}`, 'err');
+    } else if (buyerId) {
+      toast('⚠️ Chưa nhập giá nên không cộng tiền cho người mua', 'err');
+    }
 
   } else {
     // GIẢM cầu → đánh dấu |delta| trái in_stock cũ nhất thành 'removed'
@@ -5535,9 +5566,126 @@ async function confirmAdjustSC() {
   closeAdjustSCSheet({});
   const sign = delta > 0 ? '+' : '';
   const priceInfo = delta > 0 && totalItemValue > 0 ? ` · ${fmt(totalItemValue)}` : '';
-  toast(`✓ Điều chỉnh kho: ${sign}${delta} trái → còn ${newVal} trái${priceInfo}`, 'ok');
+  const buyerInfo = buyerName && totalItemValue > 0 ? ` · +${fmt(totalItemValue)} cho ${buyerName}` : '';
+  toast(`✓ Điều chỉnh kho: ${sign}${delta} trái → còn ${newVal} trái${priceInfo}${buyerInfo}`, 'ok');
   await loadShuttlecockInventory();
   renderShuttlecockCard();
+}
+
+
+// ═══════════════════════════════════════════════
+// ADMIN: CỘNG TIỀN THỦ CÔNG + GÁN NGƯỜI MUA CẦU
+// ═══════════════════════════════════════════════
+function _escTxt(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Cộng (amount > 0) hoặc trừ (amount < 0) quỹ cá nhân: RPC cập nhật số dư + ghi 1 dòng lịch sử đã xác nhận
+async function adminCreditMember(userId, amount, description) {
+  if (!me?.is_admin) return { error: new Error('Chỉ admin mới có quyền cộng tiền') };
+  if (!userId || !amount) return { error: new Error('Dữ liệu không hợp lệ') };
+  const { data: newBal, error } = await db.rpc('adjust_fund_balance', { p_user_id: userId, p_delta: amount });
+  if (error) return { error };
+  const { error: txErr } = await db.from('fund_transactions').insert({
+    user_id: userId, amount, type: amount > 0 ? 'refund' : 'deduction', description,
+    status: 'confirmed', confirmed_by: me.id, confirmed_at: new Date().toISOString()
+  });
+  if (userId === me.id && newBal != null) {
+    me.fund_balance = newBal;
+    updateBalanceDisplay(newBal);
+    try { localStorage.setItem('cvUser', JSON.stringify(me)); } catch (e) {}
+  }
+  return { newBal, txErr };
+}
+
+async function populateBuyerSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel || !db) return;
+  sel.innerHTML = '<option value="">— Không gán (không cộng tiền) —</option>';
+  const { data } = await db.from('profiles').select('id,name').neq('is_banned', true).order('name');
+  (data || []).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name || '?';
+    sel.appendChild(o);
+  });
+}
+
+function updateBuyerHint(selectId, hintId, total) {
+  const sel = document.getElementById(selectId), el = document.getElementById(hintId);
+  if (!sel || !el) return;
+  el.textContent = (sel.value && total > 0)
+    ? `${sel.options[sel.selectedIndex].textContent} sẽ được cộng +${fmt(total)} vào quỹ`
+    : '';
+}
+
+function openAdminCreditSheet(uid) {
+  if (!me?.is_admin) return toast('Chỉ admin mới có thể cộng tiền', 'err');
+  const p = adminProfilesCache.find(x => x.id === uid);
+  if (!p) return;
+  document.getElementById('acr-uid').value = uid;
+  const av = document.getElementById('acr-av');
+  av.style.background = ac(uid); av.textContent = initials(p.name);
+  document.getElementById('acr-name').textContent = p.name;
+  document.getElementById('acr-bal').textContent = fmt(p.fund_balance || 0);
+  document.getElementById('acr-amount').value = '';
+  document.getElementById('acr-note').value = '';
+  setAcrMode('add');
+  document.getElementById('admin-credit-sheet-bg').classList.add('show');
+}
+
+function closeAdminCreditSheet(e) {
+  if (!e || !e.target || e.target === document.getElementById('admin-credit-sheet-bg'))
+    document.getElementById('admin-credit-sheet-bg').classList.remove('show');
+}
+
+function acrQuick(v) {
+  const inp = document.getElementById('acr-amount');
+  inp.value = (parseInt(inp.value) || 0) + v;
+}
+
+let acrMode = 'add';
+function setAcrMode(mode) {
+  acrMode = mode === 'sub' ? 'sub' : 'add';
+  const isAdd = acrMode === 'add';
+  const on  = (c, bg, bd) => `background:${bg};border:1px solid ${bd};color:${c}`;
+  const off = 'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--muted)';
+  const base = "flex:1;padding:11px;border-radius:12px;font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:700;cursor:pointer;";
+  document.getElementById('acr-mode-add').style.cssText = base + (isAdd ? on('var(--green)', 'rgba(34,197,94,.16)', 'rgba(34,197,94,.45)') : off);
+  document.getElementById('acr-mode-sub').style.cssText = base + (!isAdd ? on('var(--red)', 'rgba(239,68,68,.14)', 'rgba(239,68,68,.45)') : off);
+  document.getElementById('acr-amount').style.color = isAdd ? 'var(--green)' : 'var(--red)';
+  const btn = document.getElementById('acr-confirm-btn');
+  btn.style.background = isAdd ? 'var(--green)' : 'var(--red)';
+  btn.style.color = isAdd ? '#04130a' : '#fff';
+  document.getElementById('acr-confirm-label').textContent = isAdd ? 'Xác nhận cộng tiền' : 'Xác nhận trừ tiền';
+}
+
+async function confirmAdminCredit() {
+  if (!me?.is_admin) return toast('Chỉ admin mới có thể cộng/trừ tiền', 'err');
+  const uid = document.getElementById('acr-uid').value;
+  const raw = Math.round(parseFloat(document.getElementById('acr-amount').value) || 0);
+  const note = document.getElementById('acr-note').value.trim();
+  const name = document.getElementById('acr-name').textContent;
+  const isAdd = acrMode === 'add';
+  if (raw <= 0) return toast('Nhập số tiền lớn hơn 0', 'err');
+  if (raw > 50000000) return toast('Số tiền quá lớn, kiểm tra lại', 'err');
+
+  const cur = (adminProfilesCache.find(x => x.id === uid)?.fund_balance) || 0;
+  const after = cur + (isAdd ? raw : -raw);
+  const msg = isAdd
+    ? `Cộng ${fmt(raw)} vào quỹ của ${name}?\nSố dư sau: ${fmt(after)}`
+    : `Trừ ${fmt(raw)} khỏi quỹ của ${name}?\nSố dư sau: ${after < 0 ? '-' : ''}${fmt(Math.abs(after))}`;
+  if (!confirm(msg)) return;
+
+  load(true);
+  const r = await adminCreditMember(uid, isAdd ? raw : -raw,
+    (isAdd ? 'Admin cộng quỹ' : 'Admin trừ quỹ') + (note ? ': ' + note : ''));
+  load(false);
+  if (r.error) return toast(r.error.message, 'err');
+  if (r.txErr) toast(`⚠️ Đã cập nhật số dư nhưng ghi lịch sử lỗi: ${r.txErr.message}`, 'err');
+  else toast(`✓ Đã ${isAdd ? 'cộng' : 'trừ'} ${fmt(raw)} ${isAdd ? 'cho' : 'của'} ${name}`, 'ok');
+  closeAdminCreditSheet({});
+  if (typeof refreshTotalNow === 'function') await refreshTotalNow();
+  loadAdminPage();
 }
 
 // ── Buy Tube Sheet ──
@@ -5547,6 +5695,8 @@ function openBuyTubeSheet() {
   tubeQty = 1;
   document.getElementById('tube-qty-display').textContent = '1';
   document.getElementById('tube-price').value = '320000';
+  const _bw = document.getElementById('buy-tube-buyer-wrap');
+  if (_bw) { _bw.style.display = me?.is_admin ? '' : 'none'; populateBuyerSelect('buy-tube-buyer'); }
   updateTubeSummary();
   // Hiện tên người tạo lệnh
   const nameEl = document.getElementById('buy-tube-ordered-by');
@@ -5577,6 +5727,7 @@ function updateTubeSummary() {
   document.getElementById('tube-sum-birds').textContent     = birds + ' trái';
   document.getElementById('tube-sum-price-per').textContent = perBird > 0 ? fmt(perBird) : '—';
   document.getElementById('tube-sum-total').textContent     = total > 0 ? fmt(total) : '—';
+  updateBuyerHint('buy-tube-buyer', 'buy-tube-buyer-hint', total);
 }
 
 async function confirmBuyTube() {
@@ -5590,13 +5741,17 @@ async function confirmBuyTube() {
   const pricePerBird = Math.round(total / birds);
   const now   = new Date().toISOString();
 
+  const buyerSel  = document.getElementById('buy-tube-buyer');
+  const buyerId   = (me.is_admin && buyerSel) ? buyerSel.value : '';
+  const buyerName = buyerId ? (buyerSel.options[buyerSel.selectedIndex]?.textContent || '').trim() : '';
+
   // 1) Ghi fund_transactions
   const buyTxId = crypto.randomUUID();
   const { error } = await db.from('fund_transactions').insert({
     id: buyTxId,
     user_id: me.id, amount: -total,
     type: 'shuttlecock_buy',
-    description: JSON.stringify({ tubes: tubeQty, count: birds, price: total, ordered_by_name: me.name || '' }),
+    description: JSON.stringify({ tubes: tubeQty, count: birds, price: total, ordered_by_name: me.name || '', buyer_id: buyerId || null, buyer_name: buyerName || null }),
     status: 'confirmed', confirmed_by: me.id, confirmed_at: now
   });
   if (error) { load(false); toast(error.message, 'err'); return; }
@@ -5606,14 +5761,20 @@ async function confirmBuyTube() {
     transaction_id: buyTxId, price: pricePerBird,
     action_type: 'buy', status: 'in_stock',
     adjusted_by_name: me.name || '', item_index: i + 1,
-    tubes: tubeQty
+    tubes: tubeQty,
+    note: buyerName ? `Người mua: ${buyerName}` : null
   }));
   const { error: itemErr } = await db.from('shuttlecock_items').insert(rows);
   if (itemErr) toast(`⚠️ Lỗi lưu shuttlecock_items: ${itemErr.message}`, 'err');
 
+  if (buyerId && !itemErr) {
+    const r = await adminCreditMember(buyerId, total, `Hoàn tiền mua cầu (${tubeQty} ống · ${birds} trái)`);
+    if (r.error || r.txErr) toast(`⚠️ Đã ghi mua cầu nhưng cộng tiền cho ${buyerName} bị lỗi: ${(r.error||r.txErr).message}`, 'err');
+  }
+
   load(false);
   closeBuyTubeSheet({});
-  toast(`✓ Mua ${tubeQty} ống · +${birds} trái · ${fmt(pricePerBird)}/trái`, 'ok');
+  toast(`✓ Mua ${tubeQty} ống · +${birds} trái · ${fmt(pricePerBird)}/trái${buyerName ? ` · +${fmt(total)} cho ${buyerName}` : ''}`, 'ok');
   await loadShuttlecockInventory();
   renderShuttlecockCard();
 }
@@ -6157,7 +6318,9 @@ async function adminConfirmTxn(txnId, userId, amount, action) {
   loadAdminPage();
 }
 
+let adminProfilesCache = [];
 function renderAdminMembers(profiles) {
+  adminProfilesCache = profiles || [];
   const el = document.getElementById('admin-members-list');
   el.innerHTML = profiles.map(p => {
     const bal = p.fund_balance || 0;
@@ -6170,6 +6333,10 @@ function renderAdminMembers(profiles) {
             <div style="font-size:11px;color:var(--muted);margin-top:2px">${bal < 0 ? '⚠️ Âm quỹ' : bal === 0 ? 'Quỹ trống' : '✓ Còn quỹ'}</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
+            <button onclick="event.stopPropagation();openAdminCreditSheet('${p.id}')"
+              style="padding:6px 10px;border-radius:10px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green);font-family:'Be Vietnam Pro',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+              <i class="ph-bold ph-plus-minus"></i> Cộng / Trừ
+            </button>
             <div style="font-size:16px;font-weight:800;color:${bal<0?'var(--red)':bal===0?'var(--muted)':'#a78bfa'}">${fmt(bal)}</div>
             <span id="arrow-${p.id}" style="color:var(--muted);font-size:12px;transition:transform .2s">▼</span>
           </div>
@@ -7038,6 +7205,14 @@ function closeMobileSidebar() {
       <div id="adj-sc-price-total" style="margin-top:8px;font-size:12px;color:var(--muted);text-align:right"></div>
     </div>
 
+    <div class="fg" id="adj-sc-buyer-wrap" style="display:none">
+      <label class="fl"><i class="ph-bold ph-user-check"></i> Người mua cầu <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(tuỳ chọn · được cộng lại tiền đã bỏ ra)</span></label>
+      <select class="fi" id="adj-sc-buyer" onchange="updateAdjSCPriceTotal()">
+        <option value="">— Không gán (không cộng tiền) —</option>
+      </select>
+      <div id="adj-sc-buyer-hint" style="margin-top:6px;font-size:12px;font-weight:700;color:var(--green)"></div>
+    </div>
+
     <div class="fg">
       <label class="fl">Ghi chú lý do <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(tuỳ chọn)</span></label>
       <input class="fi" id="adj-sc-note" type="text" placeholder="Vd: Kiểm kê thực tế, cầu hỏng...">
@@ -7046,6 +7221,52 @@ function closeMobileSidebar() {
     <button class="btn" onclick="confirmAdjustSC()"
       style="background:rgba(191,90,242,0.18);border:0.5px solid rgba(191,90,242,0.4);color:var(--purple)">
       <i class="ph-bold ph-check"></i> Xác nhận điều chỉnh
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     BOTTOM SHEET: ADMIN CỘNG TIỀN CHO THÀNH VIÊN
+══════════════════════════════ -->
+<div class="sheet-bg" id="admin-credit-sheet-bg" onclick="closeAdminCreditSheet(event)">
+  <div class="sheet" onclick="event.stopPropagation()" style="max-height:96vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div style="font-size:17px;font-weight:800;margin-bottom:12px"><i class="ph-bold ph-plus-minus" style="color:var(--accent2)"></i> Cộng / trừ quỹ thành viên</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.05)">
+      <div class="av" id="acr-av" style="width:38px;height:38px;font-size:13px"></div>
+      <div style="flex:1">
+        <div id="acr-name" style="font-size:14px;font-weight:700"></div>
+        <div style="font-size:11px;color:var(--muted)">Số dư hiện tại: <span id="acr-bal"></span></div>
+      </div>
+    </div>
+    <input type="hidden" id="acr-uid">
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button type="button" id="acr-mode-add" onclick="setAcrMode('add')"
+        style="flex:1;padding:11px;border-radius:12px;font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
+        <i class="ph-bold ph-plus"></i> Cộng tiền
+      </button>
+      <button type="button" id="acr-mode-sub" onclick="setAcrMode('sub')"
+        style="flex:1;padding:11px;border-radius:12px;font-family:'Be Vietnam Pro',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
+        <i class="ph-bold ph-minus"></i> Trừ tiền
+      </button>
+    </div>
+    <div class="fg">
+      <label class="fl">Số tiền (đ)</label>
+      <input class="fi" id="acr-amount" type="number" min="0" inputmode="numeric" placeholder="100000"
+        style="font-size:22px;font-weight:800;color:var(--green);text-align:center">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        <button type="button" onclick="acrQuick(50000)" class="sc-use-btn" style="flex:1;min-width:70px">50k</button>
+        <button type="button" onclick="acrQuick(100000)" class="sc-use-btn" style="flex:1;min-width:70px">100k</button>
+        <button type="button" onclick="acrQuick(200000)" class="sc-use-btn" style="flex:1;min-width:70px">200k</button>
+        <button type="button" onclick="acrQuick(500000)" class="sc-use-btn" style="flex:1;min-width:70px">500k</button>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">Lý do / ghi chú <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(tuỳ chọn)</span></label>
+      <input class="fi" id="acr-note" type="text" placeholder="VD: Nhận tiền mặt, trừ tiền nước, điều chỉnh sai sót...">
+    </div>
+    <button class="btn" id="acr-confirm-btn" onclick="confirmAdminCredit()" style="background:var(--green);color:#04130a">
+      <i class="ph-bold ph-check"></i> <span id="acr-confirm-label">Xác nhận cộng tiền</span>
     </button>
   </div>
 </div>
@@ -7101,6 +7322,14 @@ function closeMobileSidebar() {
         <span style="color:var(--muted);font-size:12px">Tổng chi từ quỹ nhóm</span>
         <span id="tube-sum-total" style="font-size:15px;font-weight:800;color:var(--red)">—</span>
       </div>
+    </div>
+
+    <div class="fg" id="buy-tube-buyer-wrap" style="display:none">
+      <label class="fl"><i class="ph-bold ph-user-check"></i> Người mua cầu <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">(tuỳ chọn · được cộng lại tiền đã bỏ ra)</span></label>
+      <select class="fi" id="buy-tube-buyer" onchange="updateTubeSummary()">
+        <option value="">— Không gán (không cộng tiền) —</option>
+      </select>
+      <div id="buy-tube-buyer-hint" style="margin-top:6px;font-size:12px;font-weight:700;color:var(--green)"></div>
     </div>
 
     <button class="btn" onclick="confirmBuyTube()"><i class="ph-bold ph-shopping-cart"></i> Xác nhận mua</button>
